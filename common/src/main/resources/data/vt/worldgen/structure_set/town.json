@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "vt:town",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "salt": 127444124,
+    "spacing": 50,
+    "separation": 19,
+    "type": "minecraft:random_spread"
+  }
+}
