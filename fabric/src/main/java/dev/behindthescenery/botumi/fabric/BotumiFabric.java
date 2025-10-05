@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import dev.behindthescenery.botumi.DomeParticles;
 import dev.behindthescenery.botumi.Botumi;
+import dev.behindthescenery.botumi.fabric.registry.BotumiFabricRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.RegistryPredicateArgumentType;
@@ -24,6 +25,7 @@ public final class BotumiFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         Botumi.init();
+        BotumiFabricRegistry.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 CommandManager.literal("botumi")
                         .requires(src -> src.hasPermissionLevel(2))
