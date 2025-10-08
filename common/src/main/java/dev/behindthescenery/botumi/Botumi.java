@@ -1,6 +1,7 @@
 package dev.behindthescenery.botumi;
 
 
+import dev.behindthescenery.botumi.config.BConfig;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.structure.StructureStart;
@@ -12,25 +13,15 @@ import java.util.List;
 public final class Botumi {
     public static final String MOD_ID = "botumi";
 
-    private static Identifier testStructureId = Identifier.tryParse("minecraft:village_plains");
-
     public static void init() {
+        BConfig.load();
     }
 
-    public static Identifier getTestStructureId() {
-        return testStructureId;
-    }
 
-    public static void setTestStructureId(String id) {
-        Identifier rl = Identifier.tryParse(id);
-        if (rl != null) {
-            testStructureId = rl;
-        }
-    }
 
     public static Box getStructureData(ServerWorld world, BlockPos structurePos) {
 
-        List<StructureStart> structureStarts = world.getStructureAccessor().getStructureStarts(ChunkSectionPos.from(structurePos), world.getRegistryManager().get(RegistryKeys.STRUCTURE).get(testStructureId));
+        List<StructureStart> structureStarts = world.getStructureAccessor().getStructureStarts(ChunkSectionPos.from(structurePos), world.getRegistryManager().get(RegistryKeys.STRUCTURE).get(Identifier.of(BConfig.INSTANCE.protectedStructureId)));
         Box overallBox = null;
         if (structureStarts != null && !structureStarts.isEmpty()) {
             for (StructureStart structureStart : structureStarts) {
@@ -54,7 +45,7 @@ public final class Botumi {
     //    east = +x
 
 
-//   6 int array for structure size (north, south, west, east, up, down)
+//   6 double array for structure size (north, south, west, east, up, down)
 
     public static double[] getStructureSize(ServerWorld world, BlockPos structurePos) {
         Box box = getStructureData(world, structurePos);

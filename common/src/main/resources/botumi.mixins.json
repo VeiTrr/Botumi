@@ -6,6 +6,12 @@
   "client": [
   ],
   "mixins": [
+    "BlockProtect.BlockItemMixin",
+    "BlockProtect.EndermanGoalsMixin$EndermanPickUpGoalMixin",
+    "BlockProtect.EndermanGoalsMixin$EndermanPlaceGoalMixin",
+    "BlockProtect.ExplosionMixin",
+    "BlockProtect.PistonBlockMixin",
+    "BlockProtect.ServerPlayerInteractionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

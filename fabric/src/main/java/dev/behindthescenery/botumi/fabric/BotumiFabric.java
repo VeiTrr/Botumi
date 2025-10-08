@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import dev.behindthescenery.botumi.DomeParticles;
 import dev.behindthescenery.botumi.Botumi;
+import dev.behindthescenery.botumi.config.BConfig;
 import dev.behindthescenery.botumi.fabric.registry.BotumiFabricRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -15,6 +16,7 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.Objects;
@@ -26,6 +28,7 @@ public final class BotumiFabric implements ModInitializer {
     public void onInitialize() {
         Botumi.init();
         BotumiFabricRegistry.register();
+
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 CommandManager.literal("botumi")
                         .requires(src -> src.hasPermissionLevel(2))
@@ -33,8 +36,8 @@ public final class BotumiFabric implements ModInitializer {
                                 .then(CommandManager.argument("id", RegistryPredicateArgumentType.registryPredicate(RegistryKeys.STRUCTURE))
                                         .executes(c -> {
                                             String id = RegistryPredicateArgumentType.getPredicate(c, "id", RegistryKeys.STRUCTURE, STRUCTURE_INVALID_EXCEPTION).asString();
-                                            Botumi.setTestStructureId(id);
-                                            c.getSource().sendFeedback(() -> Text.literal("Структура установлена: " + Botumi.getTestStructureId()), true);
+                                            BConfig.setTestStructureId(id);
+                                            c.getSource().sendFeedback(() -> Text.literal("Структура установлена: " + BConfig.INSTANCE.protectedStructureId), true);
                                             return 1;
                                         })
                                 )
@@ -44,7 +47,7 @@ public final class BotumiFabric implements ModInitializer {
                                     try {
                                     ServerPlayerEntity player = c.getSource().getPlayerOrThrow();
                                     ServerWorld world = player.getServerWorld();
-                                    BlockPos structurepos = Objects.requireNonNull(world.getChunkManager().getChunkGenerator().locateStructure(world, RegistryEntryList.of(RegistryEntry.of(world.getRegistryManager().get(RegistryKeys.STRUCTURE).get(Botumi.getTestStructureId()))), player.getBlockPos(), 100, false)).getFirst();
+                                    BlockPos structurepos = Objects.requireNonNull(world.getChunkManager().getChunkGenerator().locateStructure(world, RegistryEntryList.of(RegistryEntry.of(world.getRegistryManager().get(RegistryKeys.STRUCTURE).get(Identifier.of(BConfig.INSTANCE.protectedStructureId)))), player.getBlockPos(), 100, false)).getFirst();
 
                                     if (structurepos == null) {
                                         c.getSource().sendError(Text.literal("Структура не найдена в радиусе 100 блоков"));
