@@ -1,5 +1,19 @@
 {
   "itemGroup.botumi": "Botumi",
   "block.botumi.minigames_block": "Minigames Block",
-  "item.botumi.test_item": "Test Item"
+  "item.botumi.test_item": "Test Item",
+  "screen.botumi.minigame": "Minigame Screen",
+  "screen.botumi.finish": "Finish",
+  "screen.botumi.reset": "Reset",
+  "screen.botumi.type": "Type: %1$s",
+  "screen.botumi.completed": "Completed: %1$s",
+  "screen.botumi.yes": "Yes",
+  "screen.botumi.no": "No",
+  "screen.botumi.player": "Player: %1$s",
+  "screen.botumi.player_uuid": "Player UUID: %1$s",
+  "screen.botumi.none": "-",
+  "screen.botumi.action": "Action: %1$s",
+  "screen.botumi.reward_given": "Reward Given",
+  "screen.botumi.passage_opened": "Passage Opened",
+  "screen.botumi.player_recorded": "Player Recorded"
 }

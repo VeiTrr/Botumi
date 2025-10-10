@@ -1,5 +1,19 @@
 {
   "itemGroup.botumi": "Botumi",
   "block.botumi.minigames_block": "Блок мини-игр",
-  "item.botumi.test_item": "Тестовый предмет"
+  "item.botumi.test_item": "Тестовый предмет",
+  "screen.botumi.minigame": "Экран мини-игры",
+  "screen.botumi.finish": "Завершить",
+  "screen.botumi.reset": "Сбросить",
+  "screen.botumi.type": "Тип: %1$s",
+  "screen.botumi.completed": "Завершено: %1$s",
+  "screen.botumi.yes": "Да",
+  "screen.botumi.no": "Нет",
+  "screen.botumi.player": "Игрок: %1$s",
+  "screen.botumi.player_uuid": "UUID игрока: %1$s",
+  "screen.botumi.none": "-",
+  "screen.botumi.action": "Действие: %1$s",
+  "screen.botumi.reward_given": "Награда выдана",
+  "screen.botumi.passage_opened": "Проход открыт",
+  "screen.botumi.player_recorded": "Игрок записан"
 }

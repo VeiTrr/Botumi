@@ -6,7 +6,6 @@ import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
@@ -19,22 +18,21 @@ import org.jetbrains.annotations.Nullable;
 
 public class MinigamesBlock extends BlockWithEntity implements BlockEntityProvider {
 
-    public static Identifier ID = Identifier.of(Botumi.MOD_ID, "minigames_block");
+    public static final Identifier ID = Identifier.of(Botumi.MOD_ID, "minigames_block");
+    public static final MapCodec<MinigamesBlock> CODEC = createCodec(MinigamesBlock::new);
 
     public MinigamesBlock() {
-        super(Block.Settings.copy(Blocks.STONE));
+        this(Settings.copy(Blocks.STONE).nonOpaque());
     }
 
+    public MinigamesBlock(Settings settings) {
+        super(settings);
+    }
 
     @Override
-    public BlockRenderType getRenderType(BlockState state) {
-        return BlockRenderType.MODEL;
-    }
+    public BlockRenderType getRenderType(BlockState state) { return BlockRenderType.MODEL; }
 
-    public VoxelShape makeShape() {
-        VoxelShape shape = VoxelShapes.empty();
-        return shape;
-    }
+    public VoxelShape makeShape() { return VoxelShapes.fullCube(); }
 
     @Override
     public VoxelShape getOutlineShape(BlockState state, BlockView view, BlockPos pos, ShapeContext context) {
@@ -42,9 +40,7 @@ public class MinigamesBlock extends BlockWithEntity implements BlockEntityProvid
     }
 
     @Override
-    protected MapCodec<? extends BlockWithEntity> getCodec() {
-        return null;
-    }
+    protected MapCodec<? extends BlockWithEntity> getCodec() { return CODEC; }
 
     @Override
     public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
@@ -53,40 +49,13 @@ public class MinigamesBlock extends BlockWithEntity implements BlockEntityProvid
 
     @Override
     protected ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
-        if (!world.isClient && world.getServer() != null) {
-            if (player.isSneaking()) {
-                return onShiftRightClick(state, world, pos, player, hit);
-            } else {
-                return onRightClick(state, world, pos, player, hit);
+        if (!world.isClient) {
+            BlockEntity be = world.getBlockEntity(pos);
+            if (be instanceof MinigamesBlockEntity minibe) {
+                player.openHandledScreen(minibe);
+                return ActionResult.CONSUME;
             }
         }
-        return super.onUse(state, world, pos, player, hit);
+        return ActionResult.SUCCESS;
     }
-
-    protected ActionResult onRightClick(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
-        MinigamesBlockEntity be = (MinigamesBlockEntity) world.getBlockEntity(pos);
-        if (be != null) {
-            player.sendMessage(Text.of("Minigame Type: " + be.MinigameType), false);
-            return ActionResult.SUCCESS;
-        }
-        return ActionResult.PASS;
-    }
-
-    protected ActionResult onShiftRightClick(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
-        MinigamesBlockEntity be = (MinigamesBlockEntity) world.getBlockEntity(pos);
-        if (be != null) {
-            if (be.MinigameType.equals("none")) {
-                be.MinigameType = "example_minigame";
-            } else if (be.MinigameType.equals("example_minigame")) {
-                be.MinigameType = "another_minigame";
-            } else {
-                be.MinigameType = "none";
-            }
-            be.markDirty();
-            player.sendMessage(Text.of("Minigame Type set to: " + be.MinigameType), false);
-            return ActionResult.SUCCESS;
-        }
-        return ActionResult.PASS;
-    }
-
 }
