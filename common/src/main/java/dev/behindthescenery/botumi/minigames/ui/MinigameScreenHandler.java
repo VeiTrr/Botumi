@@ -61,7 +61,7 @@ public class MinigameScreenHandler extends ScreenHandler {
             if (!beRef.isCompleted()) {
                 beRef.setCompleted(true);
                 beRef.setCompletedBy(player.getUuid());
-                beRef.setActionCode(1);
+                beRef.executeConfiguredActions(player);
             } else {
                 beRef.setCompleted(false);
                 beRef.setCompletedBy(null);

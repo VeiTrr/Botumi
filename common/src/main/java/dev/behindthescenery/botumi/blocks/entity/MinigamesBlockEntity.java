@@ -1,6 +1,7 @@
 package dev.behindthescenery.botumi.blocks.entity;
 
 import dev.behindthescenery.botumi.Botumi;
+import dev.behindthescenery.botumi.minigames.MinigameActions;
 import dev.behindthescenery.botumi.minigames.ui.MinigameScreenHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -29,7 +30,10 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
     private boolean completed = false;
     @Nullable
     private UUID completedBy = null;
-    private int actionCode = 0; // 0-none, 1-reward_given, 2-passage_opened, 3-player_recorded
+    // 0-none, 1-reward_given, 2-passage_opened, 3-player_recorded
+    private int actionCode = 0;
+
+    private NbtCompound action = new NbtCompound();
 
     public MinigamesBlockEntity(BlockPos pos, BlockState state) {
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
@@ -47,6 +51,17 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
 
     public int getActionCode() { return actionCode; }
     public void setActionCode(int code) { this.actionCode = code; markChanged(); }
+
+    public NbtCompound getAction() { return action; }
+    public void setAction(@Nullable NbtCompound value) {
+        this.action = value == null ? new NbtCompound() : value;
+        markChanged();
+    }
+
+    public void executeConfiguredActions(PlayerEntity player) {
+        int code = MinigameActions.execute(this, player);
+        setActionCode(code);
+    }
 
     private void markChanged() {
         if (this.world != null) {
@@ -69,6 +84,11 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
             this.completedBy = null;
         }
         this.actionCode = nbt.getInt("ActionCode");
+        if (nbt.contains("Action")) {
+            this.action = nbt.getCompound("Action");
+        } else {
+            this.action = new NbtCompound();
+        }
     }
 
     @Override
@@ -81,6 +101,9 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
             nbt.putLong("CompletedByLeast", this.completedBy.getLeastSignificantBits());
         }
         nbt.putInt("ActionCode", this.actionCode);
+        if (this.action != null && !this.action.isEmpty()) {
+            nbt.put("Action", this.action);
+        }
     }
 
     @Override
