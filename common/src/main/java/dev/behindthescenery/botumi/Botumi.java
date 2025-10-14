@@ -18,7 +18,6 @@ public final class Botumi {
     }
 
 
-
     public static Box getStructureData(ServerWorld world, BlockPos structurePos) {
 
         List<StructureStart> structureStarts = world.getStructureAccessor().getStructureStarts(ChunkSectionPos.from(structurePos), world.getRegistryManager().get(RegistryKeys.STRUCTURE).get(Identifier.of(BConfig.INSTANCE.protectedStructureId)));
