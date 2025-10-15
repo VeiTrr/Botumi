@@ -1,8 +1,10 @@
 {
   "itemGroup.botumi": "Botumi",
   "block.botumi.minigames_block": "Блок мини-игр",
+  "block.botumi.dome_block": "Блок купола",
   "item.botumi.test_item": "Тестовый предмет",
   "screen.botumi.minigame": "Экран мини-игры",
+  "screen.botumi.dome": "Контроллер Купола",
   "screen.botumi.finish": "Завершить",
   "screen.botumi.reset": "Сбросить",
   "screen.botumi.type": "Тип: %1$s",

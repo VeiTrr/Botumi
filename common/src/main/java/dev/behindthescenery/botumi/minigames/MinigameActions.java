@@ -1,5 +1,7 @@
 package dev.behindthescenery.botumi.minigames;
 
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.StringReader;
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
 import net.minecraft.block.Block;
@@ -25,6 +27,9 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.resource.featuretoggle.FeatureFlags;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.state.property.Property;
 import net.minecraft.util.Identifier;
@@ -42,7 +47,7 @@ public final class MinigameActions {
     public static int execute(MinigamesBlockEntity be, PlayerEntity player) {
         if (!(be.getWorld() instanceof ServerWorld sw)) return 0;
 
-        NbtCompound action = be.getAction();
+        NbtCompound action = resolveAction(sw, be);
         if (action == null || action.isEmpty()) return 0;
 
         String type = action.getString("type");
@@ -54,8 +59,29 @@ public final class MinigameActions {
             case "give_reward_item" -> executeGiveRewardItem(sw, player, data);
             case "give_reward_loot" -> executeGiveRewardLoot(sw, player, data);
             case "record_player" -> executeRecordPlayer(be, player);
+            case "run_command" -> executeRunCommand(sw, be, player, data);
+            case "run_function" -> executeRunFunction(sw, be, player, data);
             default -> 0;
         };
+    }
+
+    private static NbtCompound resolveAction(ServerWorld sw, MinigamesBlockEntity be) {
+        NbtCompound action = be.getAction();
+        if (action != null && !action.isEmpty()) return action;
+
+        try {
+            NbtCompound beNbt = be.createNbt(sw.getRegistryManager());
+            if (beNbt == null) return action;
+            NbtCompound comps = beNbt.getCompound("components");
+            if (comps == null || comps.isEmpty()) return action;
+            if (!comps.contains("minecraft:custom_data")) return action;
+            NbtCompound custom = comps.getCompound("minecraft:custom_data");
+            if (custom == null || custom.isEmpty()) return action;
+            if (custom.contains("Action")) {
+                return custom.getCompound("Action");
+            }
+        } catch (Exception ignored) {}
+        return action;
     }
 
     private static int executeSetBlock(ServerWorld sw, BlockPos origin, NbtCompound data) {
@@ -146,9 +172,7 @@ public final class MinigameActions {
                     }
                     if (setParsed != null) {
                         sw.setBlockState(mutable, setParsed.state(), Block.NOTIFY_ALL);
-                        if (setParsed.beNbt() != null) {
-                            applyBeNbt(sw, mutable, setParsed.beNbt());
-                        }
+                        if (setParsed.beNbt() != null) applyBeNbt(sw, mutable, setParsed.beNbt());
                     } else {
                         sw.setBlockState(mutable, setState, Block.NOTIFY_ALL);
                     }
@@ -258,6 +282,45 @@ public final class MinigameActions {
         return 3;
     }
 
+    private static int executeRunCommand(ServerWorld sw, MinigamesBlockEntity be, PlayerEntity player, NbtCompound data) {
+        String cmd = data.getString("command");
+        if (cmd == null || cmd.isEmpty()) return 0;
+
+        MinecraftServer server = sw.getServer();
+        ServerCommandSource src = (player != null ? player.getCommandSource() : server.getCommandSource()).withWorld(sw);
+
+        if (isTruthy(data, "atBlock")) {
+            src = src.withPosition(Vec3d.ofCenter(be.getPos()));
+        }
+        if (data.contains("permissionLevel")) {
+            int lvl = Math.max(0, Math.min(4, data.getInt("permissionLevel")));
+            src = src.withLevel(lvl);
+        }
+
+        try {
+            CommandManager mgr = server.getCommandManager();
+            CommandDispatcher<ServerCommandSource> dispatcher = mgr.getDispatcher();
+            String input = cmd.startsWith("/") ? cmd.substring(1) : cmd;
+            ParseResults<ServerCommandSource> parsed = dispatcher.parse(input, src);
+            mgr.execute(parsed, input);
+            return 2;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private static int executeRunFunction(ServerWorld sw, MinigamesBlockEntity be, PlayerEntity player, NbtCompound data) {
+        String fn = data.contains("function") ? data.getString("function") : data.getString("id");
+        if (fn == null || fn.isEmpty()) return 0;
+
+        NbtCompound cmdData = new NbtCompound();
+        cmdData.putString("command", "function " + fn);
+        if (data.contains("atBlock")) cmdData.putBoolean("atBlock", isTruthy(data, "atBlock"));
+        if (data.contains("permissionLevel")) cmdData.putInt("permissionLevel", data.getInt("permissionLevel"));
+        System.out.println("Running function " + fn + " for minigame at " + be.getPos());
+        return executeRunCommand(sw, be, player, cmdData);
+    }
+
     private static BlockPos readPos(NbtCompound data, BlockPos origin, boolean relative) {
         int x, y, z;
         int[] arr = data.getIntArray("pos");
@@ -324,5 +387,13 @@ public final class MinigameActions {
             lc.setLootTable(key, seed);
             be.markDirty();
         }
+    }
+
+    private static boolean isTruthy(NbtCompound data, String key) {
+        if (!data.contains(key)) return false;
+        if (data.getBoolean(key)) return true;
+        if (data.getInt(key) != 0) return true;
+        String s = data.getString(key);
+        return "true".equalsIgnoreCase(s) || "1".equals(s);
     }
 }

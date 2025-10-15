@@ -1,8 +1,10 @@
 {
   "itemGroup.botumi": "Botumi",
   "block.botumi.minigames_block": "Minigames Block",
+  "block.botumi.dome_block": "Dome Block",
   "item.botumi.test_item": "Test Item",
   "screen.botumi.minigame": "Minigame Screen",
+  "screen.botumi.dome": "Dome Controller",
   "screen.botumi.finish": "Finish",
   "screen.botumi.reset": "Reset",
   "screen.botumi.type": "Type: %1$s",
