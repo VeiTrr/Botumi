@@ -11,11 +11,21 @@
   "screen.botumi.completed": "Completed: %1$s",
   "screen.botumi.yes": "Yes",
   "screen.botumi.no": "No",
+  "screen.botumi.enable": "Enable",
+  "screen.botumi.enabled": "Enabled: %1$s",
+  "screen.botumi.disable": "Disable",
+  "screen.botumi.disabled": "Disabled: %1$s",
+  "screen.botumi.toggle": "Toggle",
   "screen.botumi.player": "Player: %1$s",
   "screen.botumi.player_uuid": "Player UUID: %1$s",
   "screen.botumi.none": "-",
   "screen.botumi.action": "Action: %1$s",
   "screen.botumi.reward_given": "Reward Given",
   "screen.botumi.passage_opened": "Passage Opened",
-  "screen.botumi.player_recorded": "Player Recorded"
+  "screen.botumi.player_recorded": "Player Recorded",
+  "screen.botumi.structure_id": "Structure ID: %1$s",
+  "screen.botumi.protect": "Protect",
+  "screen.botumi.protection": "Protection: %1$s",
+  "screen.botumi.saved_structure": "Saved Structure: %1$s",
+  "screen.botumi.selected_structure": "Selected Structure: %1$s"
 }

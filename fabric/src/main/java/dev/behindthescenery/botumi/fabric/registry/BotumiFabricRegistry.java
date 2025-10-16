@@ -6,7 +6,8 @@ import dev.behindthescenery.botumi.blocks.MinigamesBlock;
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
 import dev.behindthescenery.botumi.items.TestItem;
-import dev.behindthescenery.botumi.minigames.ui.MinigameScreenHandler;
+import dev.behindthescenery.botumi.ui.DomeScreenHandler;
+import dev.behindthescenery.botumi.ui.MinigameScreenHandler;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.registry.Registries;
@@ -29,6 +30,11 @@ public class BotumiFabricRegistry {
                 Registries.SCREEN_HANDLER,
                 Identifier.of(Botumi.MOD_ID, "minigame"),
                 new ScreenHandlerType<>(MinigameScreenHandler::new, FeatureFlags.VANILLA_FEATURES)
+        );
+        BotumiRegistry.DOME_SCREEN_HANDLER = Registry.register(
+                Registries.SCREEN_HANDLER,
+                Identifier.of(Botumi.MOD_ID, "dome"),
+                new ScreenHandlerType<>(DomeScreenHandler::new, FeatureFlags.VANILLA_FEATURES)
         );
     }
 

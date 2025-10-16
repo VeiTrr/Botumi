@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi.minigames.ui;
+package dev.behindthescenery.botumi.ui;
 
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;

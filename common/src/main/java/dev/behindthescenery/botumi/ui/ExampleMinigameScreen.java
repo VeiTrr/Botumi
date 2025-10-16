@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi.minigames.ui;
+package dev.behindthescenery.botumi.ui;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;

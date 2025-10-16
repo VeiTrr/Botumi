@@ -2,7 +2,7 @@ package dev.behindthescenery.botumi.blocks.entity;
 
 import dev.behindthescenery.botumi.Botumi;
 import dev.behindthescenery.botumi.minigames.MinigameActions;
-import dev.behindthescenery.botumi.minigames.ui.MinigameScreenHandler;
+import dev.behindthescenery.botumi.ui.MinigameScreenHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
