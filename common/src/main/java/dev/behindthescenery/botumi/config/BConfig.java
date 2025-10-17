@@ -2,7 +2,6 @@ package dev.behindthescenery.botumi.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.minecraft.util.Identifier;
 
 import java.io.File;
 import java.io.FileReader;
@@ -15,16 +14,8 @@ public class BConfig {
 
     public static BConfig INSTANCE = new BConfig();
 
-    public String protectedStructureId = "vt:town";
-    public boolean protectInStructure = true;
+    public String CustomHuskTag = "custom_husk";
 
-    public static void setTestStructureId(String id) {
-        Identifier rl = Identifier.tryParse(id);
-        if (rl != null) {
-            BConfig.INSTANCE.protectedStructureId = rl.toString();
-            BConfig.save();
-        }
-    }
 
     public static void load() {
         if (CONFIG_FILE.exists()) {

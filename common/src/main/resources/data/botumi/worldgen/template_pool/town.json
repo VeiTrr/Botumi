@@ -1,11 +1,11 @@
 {
-  "name": "vt:town",
+  "name": "botumi:town",
   "fallback": "minecraft:empty",
   "elements": [
     {
       "weight": 100,
       "element": {
-        "location": "vt:mainhousetop",
+        "location": "botumi:mainhousetop",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"
@@ -14,7 +14,7 @@
     {
       "weight": 100,
       "element": {
-        "location": "vt:alley",
+        "location": "botumi:alley",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"
@@ -23,7 +23,7 @@
     {
       "weight": 100,
       "element": {
-        "location": "vt:houseblue",
+        "location": "botumi:houseblue",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"
@@ -32,7 +32,7 @@
     {
       "weight": 100,
       "element": {
-        "location": "vt:housered",
+        "location": "botumi:housered",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"
@@ -42,7 +42,7 @@
     {
       "weight": 100,
       "element": {
-        "location": "vt:houseyellow",
+        "location": "botumi:houseyellow",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"
@@ -51,7 +51,7 @@
     {
       "weight": 100,
       "element": {
-        "location": "vt:housegreen",
+        "location": "botumi:housegreen",
         "processors": "minecraft:empty",
         "projection": "rigid",
         "element_type": "minecraft:single_pool_element"

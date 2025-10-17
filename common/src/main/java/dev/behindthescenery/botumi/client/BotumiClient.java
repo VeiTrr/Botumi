@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi;
+package dev.behindthescenery.botumi.client;
 
 public class BotumiClient {
     public void init() {

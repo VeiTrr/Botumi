@@ -4,9 +4,11 @@
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "client": [
+    "Render.HuskEntityRendererMixin",
     "Render.TransculentBlock"
   ],
   "mixins": [
+    "HuskEntityRemoveMixin",
     "BlockProtect.BlockItemMixin",
     "BlockProtect.EndermanGoalsMixin$EndermanPickUpGoalMixin",
     "BlockProtect.EndermanGoalsMixin$EndermanPlaceGoalMixin",

@@ -1,4 +1,3 @@
-// java
 package dev.behindthescenery.botumi.util;
 
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
