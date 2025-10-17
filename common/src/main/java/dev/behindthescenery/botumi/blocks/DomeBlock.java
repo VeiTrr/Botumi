@@ -3,8 +3,11 @@ package dev.behindthescenery.botumi.blocks;
 import com.mojang.serialization.MapCodec;
 import dev.behindthescenery.botumi.Botumi;
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
+import dev.behindthescenery.botumi.registry.BotumiRegistry;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.Fluids;
@@ -89,5 +92,11 @@ public class DomeBlock extends BlockWithEntity implements BlockEntityProvider, W
             }
         }
         return ActionResult.SUCCESS;
+    }
+
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
+        return validateTicker(type, BotumiRegistry.DOME_BLOCK_ENTITY, DomeBlockEntity::tick);
     }
 }
