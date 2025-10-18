@@ -1,0 +1,43 @@
+name: build
+on: [pull_request, push]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        java: [21]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+      - name: setup jdk ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'microsoft'
+      - name: install dos2unix
+        run: sudo apt-get update && sudo apt-get install -y dos2unix
+      - name: convert line endings
+        run: dos2unix ./gradlew
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: build
+        run: ./gradlew build
+      - name: move jars to root directory
+        run: |
+          mkdir -p jars
+          mv fabric/build/libs/*.jar jars/ || true
+          mv forge/build/libs/*.jar jars/ || true
+          mv neoforge/build/libs/*.jar jars/ || true
+          rm -f jars/*-dev-shadow.jar || true
+      - name: Extract repository name
+        id: repo_name
+        run: echo "repo_name=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+      - name: capture build artifacts
+        if: ${{ matrix.java == '21' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.repo_name }}
+          path: jars/
