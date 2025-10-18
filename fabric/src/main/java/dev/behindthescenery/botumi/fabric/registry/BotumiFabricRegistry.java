@@ -5,7 +5,6 @@ import dev.behindthescenery.botumi.blocks.DomeBlock;
 import dev.behindthescenery.botumi.blocks.MinigamesBlock;
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
-import dev.behindthescenery.botumi.items.TestItem;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;
 import dev.behindthescenery.botumi.ui.DomeScreenHandler;
 import dev.behindthescenery.botumi.ui.MinigameScreenHandler;
@@ -27,7 +26,6 @@ public class BotumiFabricRegistry {
         Registry.register(Registries.ITEM, DomeBlock.ID, BotumiRegistry.DOME_BLOCK_ITEM);
         BotumiRegistry.MINIGAMES_BLOCK_ENTITY = registerBlockEntity(MinigamesBlockEntity.ID, MinigamesBlockEntity::new, BotumiRegistry.MINIGAMES_BLOCK);
         BotumiRegistry.DOME_BLOCK_ENTITY = registerBlockEntity(DomeBlockEntity.ID, DomeBlockEntity::new, BotumiRegistry.DOME_BLOCK);
-        Registry.register(Registries.ITEM, TestItem.ID, BotumiRegistry.TEST_ITEM);
         Registry.register(Registries.ITEM_GROUP, BotumiRegistry.BOTUMI_ITEM_GROUP_ID, BotumiRegistry.BOTUMI_ITEM_GROUP);
         BotumiRegistry.MINIGAME_SCREEN_HANDLER = Registry.register(
                 Registries.SCREEN_HANDLER,

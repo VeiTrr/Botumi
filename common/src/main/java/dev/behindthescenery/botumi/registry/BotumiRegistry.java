@@ -5,7 +5,6 @@ import dev.behindthescenery.botumi.blocks.DomeBlock;
 import dev.behindthescenery.botumi.blocks.MinigamesBlock;
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
-import dev.behindthescenery.botumi.items.TestItem;
 import dev.behindthescenery.botumi.ui.DomeScreenHandler;
 import dev.behindthescenery.botumi.ui.MinigameScreenHandler;
 import net.minecraft.block.Block;
@@ -26,14 +25,12 @@ public class BotumiRegistry {
     public static final Item DOME_BLOCK_ITEM = new BlockItem(DOME_BLOCK, new Item.Settings());
     public static BlockEntityType<MinigamesBlockEntity> MINIGAMES_BLOCK_ENTITY;
     public static BlockEntityType<DomeBlockEntity> DOME_BLOCK_ENTITY;
-    public static final Item TEST_ITEM = new TestItem();
     public static final ItemGroup BOTUMI_ITEM_GROUP = ItemGroup.create(null, -1)
             .displayName(Text.translatable("itemGroup.botumi"))
             .icon(() -> new ItemStack(BotumiRegistry.MINIGAMES_BLOCK_ITEM))
             .entries((displayContext, entries) -> {
                 entries.add(BotumiRegistry.MINIGAMES_BLOCK_ITEM);
                 entries.add(BotumiRegistry.DOME_BLOCK_ITEM);
-                entries.add(BotumiRegistry.TEST_ITEM);
             })
             .build();
     public static final Identifier BOTUMI_ITEM_GROUP_ID = Identifier.of(Botumi.MOD_ID, "botumi");
