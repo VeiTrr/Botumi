@@ -4,7 +4,9 @@ import dev.behindthescenery.botumi.Botumi;
 import dev.behindthescenery.botumi.ui.DomeScreenHandler;
 import dev.behindthescenery.botumi.util.StructureGuard;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
@@ -26,13 +28,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 
+import static dev.behindthescenery.botumi.client.render.DomeBlockEntityRenderer.normPi;
+
+@SuppressWarnings("unused")
 public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     public static final Identifier ID = Identifier.of(Botumi.MOD_ID, "dome_block_entity");
+    private final java.util.Map<BlockPos, Integer> barrierTtl = new java.util.HashMap<>();
     int tickCounter = 0;
     private String protectedStructureId = "";
     private boolean enabled = true;
     private double radius = 70.0;
-    private boolean useStructureСenter = true;
+    private boolean useStructureCenter = true;
     private boolean useStructureRadius = false;
     private Identifier textureId = Identifier.of("minecraft", "textures/misc/forcefield.png");
     private double textureTileSize = 1.0;
@@ -41,6 +47,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     private double centerX;
     private double centerY;
     private double centerZ;
+
 
     public DomeBlockEntity(BlockPos pos, BlockState state) {
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
@@ -58,9 +65,148 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             domeBlockEntity.recalcEffectiveRadius();
             domeBlockEntity.markChanged();
         }
+
+        if (world instanceof ServerWorld sw && domeBlockEntity.enabled) {
+            domeBlockEntity.enforceBarrier(sw);
+            domeBlockEntity.decayTempColliders(sw);
+        }
     }
 
-    public String getProtectedStructureId() { return protectedStructureId; }
+    private boolean isAtGate(double py, double angle, double radius) {
+        final double gateHeightRatio = 0.01;
+        final double gateYCenter = radius * gateHeightRatio;
+        final double gateYMin = gateYCenter - 1.0;
+        final double gateYMax = gateYCenter + 1.0;
+
+        if (py < gateYMin || py > gateYMax) return false;
+
+        final double gateWidthBlocks = 2.0;
+        final double rGate = Math.max(1.0e-3, Math.sqrt(Math.max(0.0, radius * radius - gateYCenter * gateYCenter)));
+        final double halfAngleGate = (gateWidthBlocks * 0.5) / rGate;
+
+        final double[] gateAngles = new double[]{0.0, Math.PI / 2.0, Math.PI, -Math.PI / 2.0};
+        for (double ga : gateAngles) {
+            double diff = Math.abs(normPi(angle - ga));
+            if (diff <= halfAngleGate) return true;
+        }
+        return false;
+    }
+
+    private void decayTempColliders(ServerWorld sw) {
+        java.util.Iterator<java.util.Map.Entry<BlockPos, Integer>> it = barrierTtl.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<BlockPos, Integer> en = it.next();
+            int ttl = en.getValue() - 1;
+            if (ttl <= 0) {
+                BlockPos p = en.getKey();
+                if (sw.getBlockState(p).isOf(Blocks.BARRIER)) {
+                    sw.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+                }
+                it.remove();
+            } else {
+                en.setValue(ttl);
+            }
+        }
+    }
+
+    private void addCollider(ServerWorld sw, BlockPos pos) {
+        if (!sw.isInBuildLimit(pos)) return;
+        var st = sw.getBlockState(pos);
+        if (st.isAir() || st.isOf(Blocks.BARRIER)) {
+            sw.setBlockState(pos, Blocks.BARRIER.getDefaultState(), 3);
+            barrierTtl.put(pos, 3);
+        }
+    }
+
+    private void placeBarrierPatch(ServerWorld sw, Vec3d c, double R, Vec3d rNow) {
+        double py = rNow.y;
+        if (py < 0.0 || py > R) return;
+        double nx = rNow.x, ny = rNow.y, nz = rNow.z;
+        double len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (len < 1.0e-6) return;
+        nx /= len;
+        ny /= len;
+        nz /= len;
+
+        Vec3d pShell = new Vec3d(c.x + nx * R, c.y + ny * R, c.z + nz * R);
+        BlockPos base = BlockPos.ofFloored(pShell.x, pShell.y, pShell.z);
+
+        int ax;
+        int ay;
+        int az;
+        double anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
+        if (anx >= any && anx >= anz) {
+            ax = (nx >= 0 ? 1 : -1);
+            ay = 0;
+            az = 0;
+        } else if (any >= anx && any >= anz) {
+            ax = 0;
+            ay = (ny >= 0 ? 1 : -1);
+            az = 0;
+        } else {
+            ax = 0;
+            ay = 0;
+            az = (nz >= 0 ? 1 : -1);
+        }
+        BlockPos step = new BlockPos(ax, ay, az);
+
+        java.util.ArrayList<BlockPos> candidates = new java.util.ArrayList<>(27);
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dy) + Math.abs(dx) + Math.abs(dz) <= 2) {
+                        candidates.add(base.add(dx, dy, dz));
+                    }
+                }
+            }
+        }
+        candidates.add(base.add(step));
+
+        for (BlockPos p : candidates) {
+            double cx = p.getX() + 0.5 - c.x;
+            double cy = p.getY() + 0.5 - c.y;
+            double cz = p.getZ() + 0.5 - c.z;
+            double d = Math.sqrt(cx * cx + cy * cy + cz * cz);
+            if (d < 1.0e-6) continue;
+            if (Math.abs(d - R) > 1.25) continue;
+            if (cy < 0.0 || cy > R) continue;
+            double ang = Math.atan2(cz, cx);
+            if (isAtGate(cy, ang, R)) continue;
+            addCollider(sw, p);
+        }
+    }
+
+    private void enforceBarrier(ServerWorld sw) {
+        if (!this.enabled) return;
+
+        final double R = getRenderRadius();
+        if (R < 0.5) return;
+
+        final Vec3d c = getDomeBaseCenter();
+
+        final Box query = new Box(
+                c.x - R - 2.0, c.y - 2.0, c.z - R - 2.0,
+                c.x + R + 2.0, c.y + R + 2.0, c.z + R + 2.0
+        );
+
+        for (Entity e : sw.getOtherEntities(null, query)) {
+            if (e instanceof PlayerEntity pe && pe.isSpectator()) continue;
+
+            final Vec3d centerNow = e.getBoundingBox().getCenter();
+            final Vec3d rNow = centerNow.subtract(c);
+            double dNow = rNow.length();
+            if (dNow < 1.0e-6) continue;
+
+            if (Math.abs(dNow - R) <= 6.0) {
+                placeBarrierPatch(sw, c, R, rNow);
+            }
+        }
+    }
+
+
+    public String getProtectedStructureId() {
+        return protectedStructureId;
+    }
 
     public void setProtectedStructureId(String id) {
         this.protectedStructureId = id == null ? "" : id;
@@ -68,7 +214,9 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         markChanged();
     }
 
-    public double getRadius() { return radius; }
+    public double getRadius() {
+        return radius;
+    }
 
     public void setRadius(double r) {
         this.radius = Math.max(1.0, r);
@@ -76,32 +224,48 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         markChanged();
     }
 
-    public boolean isUseStructureСenter() { return useStructureСenter; }
+    public boolean isUseStructureCenter() {
+        return useStructureCenter;
+    }
 
-    public void setUseStructureСenter(boolean use) {
-        this.useStructureСenter = use;
+    public void setUseStructureCenter(boolean use) {
+        this.useStructureCenter = use;
         recalcEffectiveRadius();
         markChanged();
     }
 
-    public boolean isUseStructure() { return useStructureRadius; }
+    public boolean isUseStructure() {
+        return useStructureRadius;
+    }
+
     public void setUseStructureRadius(boolean use) {
         this.useStructureRadius = use;
         recalcEffectiveRadius();
         markChanged();
     }
 
-    public Identifier getTextureId() { return textureId; }
+    public Identifier getTextureId() {
+        return textureId;
+    }
 
     public void setTextureId(Identifier id) {
         this.textureId = (id == null) ? Identifier.of("minecraft", "textures/misc/forcefield.png") : id;
         markChanged();
     }
 
-    public double getTextureTileSize() { return textureTileSize; }
-    public void setTextureTileSize(double size) { this.textureTileSize = Math.max(0.25, size); markChanged(); }
+    public double getTextureTileSize() {
+        return textureTileSize;
+    }
 
-    public int getDomeColor() { return domeColor; }
+    public void setTextureTileSize(double size) {
+        this.textureTileSize = Math.max(0.25, size);
+        markChanged();
+    }
+
+    public int getDomeColor() {
+        return domeColor;
+    }
+
     public void setDomeColor(int color) {
         this.domeColor = color;
         markChanged();
@@ -111,16 +275,22 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         return Math.max(1.0, computedRadius > 0 ? computedRadius : radius);
     }
 
-    public Vec3d getCenter() { return Vec3d.ofCenter(this.pos); }
+    public Vec3d getCenter() {
+        return Vec3d.ofCenter(this.pos);
+    }
 
-    public boolean isEnabled() { return enabled; }
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     public void setEnabled(boolean value) {
         this.enabled = value;
         markChanged();
     }
 
-    public Vec3d getDomeBaseCenter() { return new Vec3d(centerX, centerY, centerZ); }
+    public Vec3d getDomeBaseCenter() {
+        return new Vec3d(centerX, centerY, centerZ);
+    }
 
     private void markChanged() {
         if (this.world == null) return;
@@ -143,7 +313,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         this.enabled = nbt.getBoolean("ProtectedEnabled");
 
         if (nbt.contains("Radius")) this.radius = Math.max(1.0, nbt.getDouble("Radius"));
-        if (nbt.contains("useStructureСenter")) this.useStructureСenter = nbt.getBoolean("useStructureСenter");
+        if (nbt.contains("useStructureСenter")) this.useStructureCenter = nbt.getBoolean("useStructureСenter");
         if (nbt.contains("UseStructureRadius")) this.useStructureRadius = nbt.getBoolean("UseStructureRadius");
         if (nbt.contains("Texture")) this.textureId = Identifier.tryParse(nbt.getString("Texture"));
         if (this.textureId == null) this.textureId = Identifier.of("minecraft", "textures/misc/forcefield.png");
@@ -166,7 +336,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         }
         nbt.putBoolean("ProtectedEnabled", this.enabled);
         nbt.putDouble("Radius", Math.max(1.0, this.radius));
-        nbt.putBoolean("useStructureСenter", this.useStructureСenter);
+        nbt.putBoolean("useStructureСenter", this.useStructureCenter);
         nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
         nbt.putString("Texture", this.textureId.toString());
         nbt.putDouble("TextureTileSize", Math.max(0.25, this.textureTileSize));
@@ -183,7 +353,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         nbt.putString("ProtectedStructureId", this.protectedStructureId);
         nbt.putBoolean("ProtectedEnabled", this.enabled);
         nbt.putDouble("Radius", Math.max(1.0, this.radius));
-        nbt.putBoolean("useStructureСenter", this.useStructureСenter);
+        nbt.putBoolean("useStructureСenter", this.useStructureCenter);
         nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
         nbt.putString("Texture", this.textureId.toString());
         nbt.putDouble("TextureTileSize", Math.max(0.25, this.textureTileSize));
@@ -216,7 +386,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             return;
         }
 
-        if (useStructureСenter && protectedStructureId != null && !protectedStructureId.isEmpty()) {
+        if (useStructureCenter && protectedStructureId != null && !protectedStructureId.isEmpty()) {
             Box b = StructureGuard.getStructureData(sw, this.pos, protectedStructureId);
             if (b != null) {
                 if (useStructureRadius) {
