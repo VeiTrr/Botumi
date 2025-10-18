@@ -10,11 +10,11 @@ import net.minecraft.util.Formatting;
 
 import java.util.UUID;
 
-public class ExampleMinigameScreen extends HandledScreen<MinigameScreenHandler> {
+public class MinigameScreen extends HandledScreen<MinigameScreenHandler> {
 
     private ButtonWidget finishButton;
 
-    public ExampleMinigameScreen(MinigameScreenHandler handler, PlayerInventory inventory, Text title) {
+    public MinigameScreen(MinigameScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
         this.backgroundWidth = 176;
         this.backgroundHeight = 120;

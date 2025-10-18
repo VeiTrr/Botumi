@@ -8,6 +8,9 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.network.listener.ClientPlayPacketListener;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.NamedScreenHandlerFactory;
@@ -21,14 +24,19 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.*;
+
 public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     public static final Identifier ID = Identifier.of(Botumi.MOD_ID, "dome_block_entity");
     int tickCounter = 0;
     private String protectedStructureId = "";
     private boolean enabled = true;
     private double radius = 70.0;
-    private boolean useStructureSize = true;
+    private boolean useStructureСenter = true;
+    private boolean useStructureRadius = false;
     private Identifier textureId = Identifier.of("minecraft", "textures/misc/forcefield.png");
+    private double textureTileSize = 1.0;
+    private int domeColor = Color.cyan.getRGB();
     private double computedRadius = radius;
     private double centerX;
     private double centerY;
@@ -50,21 +58,17 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             domeBlockEntity.recalcEffectiveRadius();
             domeBlockEntity.markChanged();
         }
-
     }
 
-    public String getProtectedStructureId() {
-        return protectedStructureId;
-    }
+    public String getProtectedStructureId() { return protectedStructureId; }
 
     public void setProtectedStructureId(String id) {
         this.protectedStructureId = id == null ? "" : id;
+        recalcEffectiveRadius();
         markChanged();
     }
 
-    public double getRadius() {
-        return radius;
-    }
+    public double getRadius() { return radius; }
 
     public void setRadius(double r) {
         this.radius = Math.max(1.0, r);
@@ -72,22 +76,34 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         markChanged();
     }
 
-    public boolean isUseStructureSize() {
-        return useStructureSize;
-    }
+    public boolean isUseStructureСenter() { return useStructureСenter; }
 
-    public void setUseStructureSize(boolean use) {
-        this.useStructureSize = use;
+    public void setUseStructureСenter(boolean use) {
+        this.useStructureСenter = use;
         recalcEffectiveRadius();
         markChanged();
     }
 
-    public Identifier getTextureId() {
-        return textureId;
+    public boolean isUseStructure() { return useStructureRadius; }
+    public void setUseStructureRadius(boolean use) {
+        this.useStructureRadius = use;
+        recalcEffectiveRadius();
+        markChanged();
     }
+
+    public Identifier getTextureId() { return textureId; }
 
     public void setTextureId(Identifier id) {
         this.textureId = (id == null) ? Identifier.of("minecraft", "textures/misc/forcefield.png") : id;
+        markChanged();
+    }
+
+    public double getTextureTileSize() { return textureTileSize; }
+    public void setTextureTileSize(double size) { this.textureTileSize = Math.max(0.25, size); markChanged(); }
+
+    public int getDomeColor() { return domeColor; }
+    public void setDomeColor(int color) {
+        this.domeColor = color;
         markChanged();
     }
 
@@ -95,57 +111,51 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         return Math.max(1.0, computedRadius > 0 ? computedRadius : radius);
     }
 
-    public Vec3d getCenter() {
-        return Vec3d.ofCenter(this.pos);
-    }
+    public Vec3d getCenter() { return Vec3d.ofCenter(this.pos); }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
+    public boolean isEnabled() { return enabled; }
 
     public void setEnabled(boolean value) {
         this.enabled = value;
         markChanged();
     }
 
-    public Vec3d getDomeBaseCenter() {
-        return new Vec3d(centerX, centerY, centerZ);
-    }
+    public Vec3d getDomeBaseCenter() { return new Vec3d(centerX, centerY, centerZ); }
 
     private void markChanged() {
-        if (this.world != null) {
-            this.markDirty();
+        if (this.world == null) return;
+
+        this.markDirty();
+
+        if (!this.world.isClient) {
             BlockState st = this.getCachedState();
             this.world.updateListeners(this.pos, st, st, 3);
+            ((ServerWorld) this.world).getChunkManager().markForUpdate(this.pos);
         }
     }
 
     @Override
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         super.readNbt(nbt, registryLookup);
-        if (nbt.contains("ProtectedStructureId")) {
-            this.protectedStructureId = nbt.getString("ProtectedStructureId");
-        } else {
-            this.protectedStructureId = "";
-        }
+        if (nbt.contains("ProtectedStructureId")) this.protectedStructureId = nbt.getString("ProtectedStructureId");
+        else this.protectedStructureId = "";
+
         this.enabled = nbt.getBoolean("ProtectedEnabled");
 
         if (nbt.contains("Radius")) this.radius = Math.max(1.0, nbt.getDouble("Radius"));
-        if (nbt.contains("UseStructureSize")) this.useStructureSize = nbt.getBoolean("UseStructureSize");
+        if (nbt.contains("useStructureСenter")) this.useStructureСenter = nbt.getBoolean("useStructureСenter");
+        if (nbt.contains("UseStructureRadius")) this.useStructureRadius = nbt.getBoolean("UseStructureRadius");
         if (nbt.contains("Texture")) this.textureId = Identifier.tryParse(nbt.getString("Texture"));
         if (this.textureId == null) this.textureId = Identifier.of("minecraft", "textures/misc/forcefield.png");
+        if (nbt.contains("TextureTileSize")) this.textureTileSize = Math.max(0.25, nbt.getDouble("TextureTileSize"));
+        if (nbt.contains("DomeColor")) this.domeColor = nbt.getInt("DomeColor");
+        else this.domeColor = Color.cyan.getRGB();
         if (nbt.contains("ComputedRadius")) this.computedRadius = Math.max(1.0, nbt.getDouble("ComputedRadius"));
         else this.computedRadius = Math.max(1.0, this.radius);
 
-        if (nbt.contains("DomeCenterX")) {
-            this.centerX = nbt.getDouble("DomeCenterX");
-        }
-        if (nbt.contains("DomeCenterY")) {
-            this.centerY = nbt.getDouble("DomeCenterY");
-        }
-        if (nbt.contains("DomeCenterZ")){
-            this.centerZ = nbt.getDouble("DomeCenterZ");
-        }
+        if (nbt.contains("DomeCenterX")) this.centerX = nbt.getDouble("DomeCenterX");
+        if (nbt.contains("DomeCenterY")) this.centerY = nbt.getDouble("DomeCenterY");
+        if (nbt.contains("DomeCenterZ")) this.centerZ = nbt.getDouble("DomeCenterZ");
     }
 
     @Override
@@ -156,13 +166,38 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         }
         nbt.putBoolean("ProtectedEnabled", this.enabled);
         nbt.putDouble("Radius", Math.max(1.0, this.radius));
-        nbt.putBoolean("UseStructureSize", this.useStructureSize);
+        nbt.putBoolean("useStructureСenter", this.useStructureСenter);
+        nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
         nbt.putString("Texture", this.textureId.toString());
+        nbt.putDouble("TextureTileSize", Math.max(0.25, this.textureTileSize));
+        nbt.putInt("DomeColor", this.domeColor);
         nbt.putDouble("ComputedRadius", Math.max(1.0, this.computedRadius));
-
         nbt.putDouble("DomeCenterX", this.centerX);
         nbt.putDouble("DomeCenterY", this.centerY);
         nbt.putDouble("DomeCenterZ", this.centerZ);
+    }
+
+    @Override
+    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registryLookup) {
+        NbtCompound nbt = new NbtCompound();
+        nbt.putString("ProtectedStructureId", this.protectedStructureId);
+        nbt.putBoolean("ProtectedEnabled", this.enabled);
+        nbt.putDouble("Radius", Math.max(1.0, this.radius));
+        nbt.putBoolean("useStructureСenter", this.useStructureСenter);
+        nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
+        nbt.putString("Texture", this.textureId.toString());
+        nbt.putDouble("TextureTileSize", Math.max(0.25, this.textureTileSize));
+        nbt.putInt("DomeColor", this.domeColor);
+        nbt.putDouble("ComputedRadius", Math.max(1.0, this.computedRadius));
+        nbt.putDouble("DomeCenterX", this.centerX);
+        nbt.putDouble("DomeCenterY", this.centerY);
+        nbt.putDouble("DomeCenterZ", this.centerZ);
+        return nbt;
+    }
+
+    @Override
+    public Packet<ClientPlayPacketListener> toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this);
     }
 
     @Override
@@ -181,11 +216,15 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             return;
         }
 
-        if (useStructureSize && protectedStructureId != null && !protectedStructureId.isEmpty()) {
+        if (useStructureСenter && protectedStructureId != null && !protectedStructureId.isEmpty()) {
             Box b = StructureGuard.getStructureData(sw, this.pos, protectedStructureId);
             if (b != null) {
-                double maxSq = getMaxSq(b);
-                this.computedRadius = Math.max(1.0, Math.sqrt(maxSq));
+                if (useStructureRadius) {
+                    double maxSq = getMaxSq(b);
+                    this.computedRadius = Math.max(1.0, Math.sqrt(maxSq));
+                } else {
+                    this.computedRadius = Math.max(1.0, this.radius);
+                }
                 this.centerX = b.getCenter().x;
                 this.centerY = this.pos.getY();
                 this.centerZ = b.getCenter().z;

@@ -7,33 +7,28 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactory;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Util;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEntity> {
-    private static final int DOME_COLOR = 0x6680D8FF;
     private static final int SEGMENTS = 96;
-    private static final int RINGS = 24;
-    private static final int MERIDIANS = 24;
+    private static final int RINGS = 48;
 
-    public DomeBlockEntityRenderer(BlockEntityRendererFactory.Context context) {
-    }
+    public DomeBlockEntityRenderer(BlockEntityRendererFactory.Context context) { }
 
-    private static void line(VertexConsumer vc, Matrix4f posMat, MatrixStack.Entry entry,
-                             float x1, float y1, float z1,
-                             float x2, float y2, float z2,
-                             int r, int g, int b, int a, int light) {
-        float nx = 0f, ny = 1f, nz = 0f;
-
-        vc.vertex(posMat, x1, y1, z1)
+    private static void vertex(VertexConsumer vc, Matrix4f posMat, MatrixStack.Entry entry,
+                               float x, float y, float z,
+                               float u, float v,
+                               int r, int g, int b, int a,
+                               int overlay, int light,
+                               float nx, float ny, float nz) {
+        vc.vertex(posMat, x, y, z)
                 .color(r, g, b, a)
-                .normal(entry, nx, ny, nz)
-                .light(light);
-
-        vc.vertex(posMat, x2, y2, z2)
-                .color(r, g, b, a)
-                .normal(entry, nx, ny, nz)
-                .light(light);
+                .texture(u, v)
+                .overlay(overlay)
+                .light(light)
+                .normal(entry, nx, ny, nz);
     }
 
     @Override
@@ -45,80 +40,108 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
 
         Vec3d center = entity.getDomeBaseCenter();
 
-        matrices.push();
+        float t = (float) (Util.getMeasuringTimeMs() % 6000L) / 6000.0f;
+        float uScroll = +t;
+        float vScroll = -t;
 
+        matrices.push();
         matrices.translate(
                 center.x - entity.getPos().getX(),
                 center.y - entity.getPos().getY(),
                 center.z - entity.getPos().getZ()
         );
-        System.out.println(center.getX() + ", " + center.getY() + ", " + center.getZ());
-        System.out.println(entity.getPos());
 
-        VertexConsumer vc = vertexConsumers.getBuffer(RenderLayer.getLines());
+        VertexConsumer vc = vertexConsumers.getBuffer(RenderLayer.getEntityTranslucent(entity.getTextureId()));
         MatrixStack.Entry entry = matrices.peek();
         Matrix4f posMat = entry.getPositionMatrix();
 
-        int a = (DOME_COLOR >>> 24) & 0xFF;
-        int r = (DOME_COLOR >>> 16) & 0xFF;
-        int g = (DOME_COLOR >>> 8) & 0xFF;
-        int b = (DOME_COLOR) & 0xFF;
+        int color = entity.getDomeColor();
+        int a = (color >>> 24) & 0xFF;
+        int r = (color >>> 16) & 0xFF;
+        int g = (color >>> 8) & 0xFF;
+        int b = (color) & 0xFF;
 
-        for (int i = 0; i <= RINGS; i++) {
-            double t = (double) i / (double) RINGS;
-            double phi = t * (Math.PI / 2.0);
-            double y = Math.sin(phi) * radius;
-            double ringR = Math.cos(phi) * radius;
+        double tile = Math.max(0.25, entity.getTextureTileSize());
+        double uScale = (2.0 * Math.PI * radius) / tile;
+        double vScale = (0.5 * Math.PI * radius) / tile;
 
-            double prevX = 0.0, prevZ = 0.0;
-            boolean hasPrev = false;
+        for (int i = 0; i < RINGS; i++) {
+            double t1 = (double) i / (double) RINGS;
+            double t2 = (double) (i + 1) / (double) RINGS;
 
-            for (int s = 0; s <= SEGMENTS; s++) {
-                double u = (double) s / (double) SEGMENTS;
-                double ang = u * Math.PI * 2.0;
+            double phi1 = t1 * (Math.PI / 2.0);
+            double phi2 = t2 * (Math.PI / 2.0);
 
-                double x = Math.cos(ang) * ringR;
-                double z = Math.sin(ang) * ringR;
+            double y1 = Math.sin(phi1) * radius;
+            double y2 = Math.sin(phi2) * radius;
 
-                if (hasPrev) {
-                    line(vc, posMat, entry,
-                            (float) prevX, (float) y, (float) prevZ,
-                            (float) x, (float) y, (float) z,
-                            r, g, b, a, light);
-                }
-                prevX = x;
-                prevZ = z;
-                hasPrev = true;
-            }
-        }
+            double r1 = Math.cos(phi1) * radius;
+            double r2 = Math.cos(phi2) * radius;
 
-        for (int m = 0; m < MERIDIANS; m++) {
-            double beta = (double) m / (double) MERIDIANS * Math.PI * 2.0;
-            double cb = Math.cos(beta);
-            double sb = Math.sin(beta);
+            float v1 = (float) (t1 * vScale + vScroll);
+            float v2 = (float) (t2 * vScale + vScroll);
 
-            double prevX = 0.0, prevY = 0.0, prevZ = 0.0;
-            boolean hasPrev = false;
+            for (int s = 0; s < SEGMENTS; s++) {
+                double u1 = (double) s / (double) SEGMENTS;
+                double u2 = (double) (s + 1) / (double) SEGMENTS;
 
-            for (int i = 0; i <= RINGS; i++) {
-                double t = (double) i / (double) RINGS;
-                double phi = t * (Math.PI / 2.0);
-                double y = Math.sin(phi) * radius;
-                double ringR = Math.cos(phi) * radius;
+                double th1 = u1 * Math.PI * 2.0;
+                double th2 = u2 * Math.PI * 2.0;
 
-                double x = cb * ringR;
-                double z = sb * ringR;
+                double x11 = Math.cos(th1) * r1;
+                double z11 = Math.sin(th1) * r1;
 
-                if (hasPrev) {
-                    line(vc, posMat, entry,
-                            (float) prevX, (float) prevY, (float) prevZ,
-                            (float) x, (float) y, (float) z,
-                            r, g, b, a, light);
-                }
-                prevX = x;
-                prevY = y;
-                prevZ = z;
-                hasPrev = true;
+                double x12 = Math.cos(th2) * r1;
+                double z12 = Math.sin(th2) * r1;
+
+                double x21 = Math.cos(th1) * r2;
+                double z21 = Math.sin(th1) * r2;
+
+                double x22 = Math.cos(th2) * r2;
+                double z22 = Math.sin(th2) * r2;
+
+                float n11x = (float) (x11 / radius);
+                float n11y = (float) (y1 / radius);
+                float n11z = (float) (z11 / radius);
+
+                float n12x = (float) (x12 / radius);
+                float n12y = (float) (y1 / radius);
+                float n12z = (float) (z12 / radius);
+
+                float n21x = (float) (x21 / radius);
+                float n21y = (float) (y2 / radius);
+                float n21z = (float) (z21 / radius);
+
+                float n22x = (float) (x22 / radius);
+                float n22y = (float) (y2 / radius);
+                float n22z = (float) (z22 / radius);
+
+                float uu1 = (float) (u1 * uScale + uScroll);
+                float uu2 = (float) (u2 * uScale + uScroll);
+
+                vertex(vc, posMat, entry,
+                        (float) x11, (float) y1, (float) z11,
+                        uu1, v1,
+                        r, g, b, a, overlay, light,
+                        n11x, n11y, n11z);
+
+                vertex(vc, posMat, entry,
+                        (float) x21, (float) y2, (float) z21,
+                        uu1, v2,
+                        r, g, b, a, overlay, light,
+                        n21x, n21y, n21z);
+
+                vertex(vc, posMat, entry,
+                        (float) x22, (float) y2, (float) z22,
+                        uu2, v2,
+                        r, g, b, a, overlay, light,
+                        n22x, n22y, n22z);
+
+                vertex(vc, posMat, entry,
+                        (float) x12, (float) y1, (float) z12,
+                        uu2, v1,
+                        r, g, b, a, overlay, light,
+                        n12x, n12y, n12z);
             }
         }
 
@@ -128,5 +151,10 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
     @Override
     public boolean rendersOutsideBoundingBox(DomeBlockEntity blockEntity) {
         return true;
+    }
+
+    @Override
+    public int getRenderDistance() {
+        return 256;
     }
 }
