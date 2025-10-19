@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi.ui;
+package dev.behindthescenery.botumi.client.ui;
 
 import dev.behindthescenery.botumi.blocks.entity.MinigamesBlockEntity;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;
@@ -8,6 +8,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ArrayPropertyDelegate;
 import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.sound.SoundEvents;
 
 import java.util.UUID;
 
@@ -35,7 +36,9 @@ public class MinigameScreenHandler extends ScreenHandler {
         this.pushFromBlockEntity();
     }
 
-    public PropertyDelegate getProperties() { return properties; }
+    public PropertyDelegate getProperties() {
+        return properties;
+    }
 
     private void pushFromBlockEntity() {
         if (beRef == null) return;
@@ -62,12 +65,20 @@ public class MinigameScreenHandler extends ScreenHandler {
                 beRef.setCompleted(true);
                 beRef.setCompletedBy(player.getUuid());
                 beRef.executeConfiguredActions(player);
-            } else {
+            }
+            pushFromBlockEntity();
+            return true;
+        } else if (id == 1) {
+            if (beRef.isCompleted()) {
                 beRef.setCompleted(false);
                 beRef.setCompletedBy(null);
                 beRef.setActionCode(0);
             }
             pushFromBlockEntity();
+            return true;
+        } else if (id == 2) {
+            player.damage(player.getDamageSources().magic(), 0.5F);
+            player.playSound(SoundEvents.BLOCK_BLASTFURNACE_FIRE_CRACKLE, 1.0F, 1.0F);
             return true;
         }
         return false;
@@ -83,20 +94,24 @@ public class MinigameScreenHandler extends ScreenHandler {
         return true;
     }
 
-    public boolean isCompletedClient() { return properties.get(0) == 1; }
+    public boolean isCompletedClient() {
+        return properties.get(0) == 1;
+    }
 
     public UUID getCompletedByUuidClient() {
         int a = properties.get(1);
         int b = properties.get(2);
         int c = properties.get(3);
         int d = properties.get(4);
-        long most = ((long)a << 32) | (b & 0xFFFFFFFFL);
-        long least = ((long)c << 32) | (d & 0xFFFFFFFFL);
+        long most = ((long) a << 32) | (b & 0xFFFFFFFFL);
+        long least = ((long) c << 32) | (d & 0xFFFFFFFFL);
         if (most == 0L && least == 0L) return null;
         return new UUID(most, least);
     }
 
-    public int getActionCodeClient() { return properties.get(5); }
+    public int getActionCodeClient() {
+        return properties.get(5);
+    }
 
     public String getTypeClient() {
         int len = Math.max(0, Math.min(MAX_TYPE_CHARS, properties.get(6)));

@@ -2,8 +2,8 @@ package dev.behindthescenery.botumi.fabric.client;
 
 import dev.behindthescenery.botumi.client.render.DomeBlockEntityRenderer;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;
-import dev.behindthescenery.botumi.ui.DomeScreen;
-import dev.behindthescenery.botumi.ui.MinigameScreen;
+import dev.behindthescenery.botumi.client.ui.DomeScreen;
+import dev.behindthescenery.botumi.client.ui.MinigameScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;

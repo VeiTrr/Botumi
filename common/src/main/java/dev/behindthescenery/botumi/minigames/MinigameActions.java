@@ -40,9 +40,8 @@ import java.util.Optional;
 
 public final class MinigameActions {
 
-    private record ParsedBlock(BlockState state, NbtCompound beNbt) {}
-
-    private MinigameActions() {}
+    private MinigameActions() {
+    }
 
     public static int execute(MinigamesBlockEntity be, PlayerEntity player) {
         if (!(be.getWorld() instanceof ServerWorld sw)) return 0;
@@ -80,7 +79,8 @@ public final class MinigameActions {
             if (custom.contains("Action")) {
                 return custom.getCompound("Action");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return action;
     }
 
@@ -317,7 +317,6 @@ public final class MinigameActions {
         cmdData.putString("command", "function " + fn);
         if (data.contains("atBlock")) cmdData.putBoolean("atBlock", isTruthy(data, "atBlock"));
         if (data.contains("permissionLevel")) cmdData.putInt("permissionLevel", data.getInt("permissionLevel"));
-        System.out.println("Running function " + fn + " for minigame at " + be.getPos());
         return executeRunCommand(sw, be, player, cmdData);
     }
 
@@ -325,7 +324,9 @@ public final class MinigameActions {
         int x, y, z;
         int[] arr = data.getIntArray("pos");
         if (arr != null && arr.length >= 3) {
-            x = arr[0]; y = arr[1]; z = arr[2];
+            x = arr[0];
+            y = arr[1];
+            z = arr[2];
         } else {
             x = data.getInt("x");
             y = data.getInt("y");
@@ -352,7 +353,7 @@ public final class MinigameActions {
         return null;
     }
 
-    @SuppressWarnings({"rawtypes","unchecked"})
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static BlockState applyParsed(BlockState state, Property prop, String valueStr) {
         Optional parsed = prop.parse(valueStr);
         if (parsed.isPresent()) {
@@ -395,5 +396,8 @@ public final class MinigameActions {
         if (data.getInt(key) != 0) return true;
         String s = data.getString(key);
         return "true".equalsIgnoreCase(s) || "1".equals(s);
+    }
+
+    private record ParsedBlock(BlockState state, NbtCompound beNbt) {
     }
 }

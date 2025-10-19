@@ -1,7 +1,7 @@
 package dev.behindthescenery.botumi.blocks.entity;
 
 import dev.behindthescenery.botumi.Botumi;
-import dev.behindthescenery.botumi.ui.DomeScreenHandler;
+import dev.behindthescenery.botumi.client.ui.DomeScreenHandler;
 import dev.behindthescenery.botumi.util.StructureGuard;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;

@@ -14,7 +14,7 @@
   "screen.botumi.minigame": "Экран мини-игры",
   "screen.botumi.no": "Нет",
   "screen.botumi.none": "-",
-  "screen.botumi.passage_opened": "Проход открыт",
+  "screen.botumi.function_run": "Функция выполнена",
   "screen.botumi.player": "Игрок: %1$s",
   "screen.botumi.player_recorded": "Игрок записан",
   "screen.botumi.player_uuid": "UUID игрока: %1$s",
@@ -27,5 +27,7 @@
   "screen.botumi.structure_id": "ID структуры: %1$s",
   "screen.botumi.toggle": "Переключить",
   "screen.botumi.type": "Тип: %1$s",
-  "screen.botumi.yes": "Да"
+  "screen.botumi.yes": "Да",
+  "screen.botumi.minigame.completed": "Мини-игра завершена!",
+  "screen.botumi.close": "Закрыть"
 }

@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi.ui;
+package dev.behindthescenery.botumi.client.ui;
 
 import dev.behindthescenery.botumi.blocks.entity.DomeBlockEntity;
 import dev.behindthescenery.botumi.registry.BotumiRegistry;
@@ -85,9 +85,7 @@ public class DomeScreenHandler extends ScreenHandler {
         if (beRef == null || player == null || player.getWorld().isClient) return false;
 
         switch (id) {
-            case 0 -> {
-                beRef.setEnabled(!beRef.isEnabled());
-            }
+            case 0 -> beRef.setEnabled(!beRef.isEnabled());
             case 1 -> {
                 int size = availableIds.size();
                 if (size > 0) {
@@ -125,9 +123,17 @@ public class DomeScreenHandler extends ScreenHandler {
         return true;
     }
 
-    public boolean isEnabledClient() { return properties.get(0) == 1; }
-    public int getListSizeClient() { return Math.max(0, properties.get(1)); }
-    public int getSelectedIndexClient() { return Math.max(0, properties.get(2)); }
+    public boolean isEnabledClient() {
+        return properties.get(0) == 1;
+    }
+
+    public int getListSizeClient() {
+        return Math.max(0, properties.get(1));
+    }
+
+    public int getSelectedIndexClient() {
+        return Math.max(0, properties.get(2));
+    }
 
     public String getSavedIdClient() {
         return readString(3, 4);
@@ -149,5 +155,7 @@ public class DomeScreenHandler extends ScreenHandler {
         return sb.toString();
     }
 
-    public PropertyDelegate getProperties() { return properties; }
+    public PropertyDelegate getProperties() {
+        return properties;
+    }
 }

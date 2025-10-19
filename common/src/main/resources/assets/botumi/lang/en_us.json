@@ -21,11 +21,13 @@
   "screen.botumi.none": "-",
   "screen.botumi.action": "Action: %1$s",
   "screen.botumi.reward_given": "Reward Given",
-  "screen.botumi.passage_opened": "Passage Opened",
+  "screen.botumi.function_run": "Function Run",
   "screen.botumi.player_recorded": "Player Recorded",
   "screen.botumi.structure_id": "Structure ID: %1$s",
   "screen.botumi.protect": "Protect",
   "screen.botumi.protection": "Protection: %1$s",
   "screen.botumi.saved_structure": "Saved Structure: %1$s",
-  "screen.botumi.selected_structure": "Selected Structure: %1$s"
+  "screen.botumi.selected_structure": "Selected Structure: %1$s",
+  "screen.botumi.minigame.completed": "Minigame Completed!",
+  "screen.botumi.close": "Close"
 }

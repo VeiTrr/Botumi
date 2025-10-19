@@ -1,8 +1,8 @@
 package dev.behindthescenery.botumi.blocks.entity;
 
 import dev.behindthescenery.botumi.Botumi;
+import dev.behindthescenery.botumi.client.ui.MinigameScreenHandler;
 import dev.behindthescenery.botumi.minigames.MinigameActions;
-import dev.behindthescenery.botumi.ui.MinigameScreenHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -26,7 +26,7 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
 
     public static final Identifier ID = Identifier.of(Botumi.MOD_ID, "minigames_block_entity");
 
-    private String minigameType = "example:minigame1";
+    private String minigameType = "botumi:minigame_debug";
     private boolean completed = false;
     @Nullable
     private UUID completedBy = null;
@@ -39,20 +39,67 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
     }
 
-    public String getMinigameType() { return minigameType; }
-    public void setMinigameType(String value) { this.minigameType = value; markChanged(); }
-
-    public boolean isCompleted() { return completed; }
-    public void setCompleted(boolean value) { this.completed = value; markChanged(); }
+    public static void uuidToInts(@Nullable UUID uuid, int[] out, int offset) {
+        long most = 0L, least = 0L;
+        if (uuid != null) {
+            most = uuid.getMostSignificantBits();
+            least = uuid.getLeastSignificantBits();
+        }
+        out[offset] = (int) (most >>> 32);
+        out[offset + 1] = (int) most;
+        out[offset + 2] = (int) (least >>> 32);
+        out[offset + 3] = (int) least;
+    }
 
     @Nullable
-    public UUID getCompletedBy() { return completedBy; }
-    public void setCompletedBy(@Nullable UUID uuid) { this.completedBy = uuid; markChanged(); }
+    public static UUID intsToUuid(int[] in, int offset) {
+        long most = ((long) in[offset] << 32) | (in[offset + 1] & 0xFFFFFFFFL);
+        long least = ((long) in[offset + 2] << 32) | (in[offset + 3] & 0xFFFFFFFFL);
+        if (most == 0L && least == 0L) return null;
+        return new UUID(most, least);
+    }
 
-    public int getActionCode() { return actionCode; }
-    public void setActionCode(int code) { this.actionCode = code; markChanged(); }
+    public String getMinigameType() {
+        return minigameType;
+    }
 
-    public NbtCompound getAction() { return action; }
+    public void setMinigameType(String value) {
+        this.minigameType = value;
+        markChanged();
+    }
+
+    public boolean isCompleted() {
+        return completed;
+    }
+
+    public void setCompleted(boolean value) {
+        this.completed = value;
+        markChanged();
+    }
+
+    @Nullable
+    public UUID getCompletedBy() {
+        return completedBy;
+    }
+
+    public void setCompletedBy(@Nullable UUID uuid) {
+        this.completedBy = uuid;
+        markChanged();
+    }
+
+    public int getActionCode() {
+        return actionCode;
+    }
+
+    public void setActionCode(int code) {
+        this.actionCode = code;
+        markChanged();
+    }
+
+    public NbtCompound getAction() {
+        return action;
+    }
+
     public void setAction(@Nullable NbtCompound value) {
         this.action = value == null ? new NbtCompound() : value;
         markChanged();
@@ -126,25 +173,5 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
         NbtCompound nbt = new NbtCompound();
         writeNbt(nbt, registryLookup);
         return nbt;
-    }
-
-    public static void uuidToInts(@Nullable UUID uuid, int[] out, int offset) {
-        long most = 0L, least = 0L;
-        if (uuid != null) {
-            most = uuid.getMostSignificantBits();
-            least = uuid.getLeastSignificantBits();
-        }
-        out[offset]     = (int)(most >>> 32);
-        out[offset + 1] = (int) most;
-        out[offset + 2] = (int)(least >>> 32);
-        out[offset + 3] = (int) least;
-    }
-
-    @Nullable
-    public static UUID intsToUuid(int[] in, int offset) {
-        long most = ((long)in[offset] << 32) | (in[offset + 1] & 0xFFFFFFFFL);
-        long least = ((long)in[offset + 2] << 32) | (in[offset + 3] & 0xFFFFFFFFL);
-        if (most == 0L && least == 0L) return null;
-        return new UUID(most, least);
     }
 }

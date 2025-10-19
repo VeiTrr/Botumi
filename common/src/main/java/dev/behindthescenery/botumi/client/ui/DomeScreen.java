@@ -1,4 +1,4 @@
-package dev.behindthescenery.botumi.ui;
+package dev.behindthescenery.botumi.client.ui;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -10,9 +10,6 @@ import net.minecraft.util.Formatting;
 
 public class DomeScreen extends HandledScreen<DomeScreenHandler> {
     private ButtonWidget toggleButton;
-    private ButtonWidget prevButton;
-    private ButtonWidget nextButton;
-    private ButtonWidget protectButton;
 
     public DomeScreen(DomeScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -36,28 +33,28 @@ public class DomeScreen extends HandledScreen<DomeScreenHandler> {
                     }
                 }).dimensions(cx - 70, cy - 12, 60, 20).build();
 
-        this.prevButton = ButtonWidget.builder(Text.literal("<"), btn -> {
+        ButtonWidget prevButton = ButtonWidget.builder(Text.literal("<"), btn -> {
             if (MinecraftClient.getInstance().interactionManager != null) {
                 MinecraftClient.getInstance().interactionManager.clickButton(this.handler.syncId, 1);
             }
         }).dimensions(cx - 20, cy - 12, 20, 20).build();
 
-        this.nextButton = ButtonWidget.builder(Text.literal(">"), btn -> {
+        ButtonWidget nextButton = ButtonWidget.builder(Text.literal(">"), btn -> {
             if (MinecraftClient.getInstance().interactionManager != null) {
                 MinecraftClient.getInstance().interactionManager.clickButton(this.handler.syncId, 2);
             }
         }).dimensions(cx + 2, cy - 12, 20, 20).build();
 
-        this.protectButton = ButtonWidget.builder(Text.translatable("screen.botumi.protect"), btn -> {
+        ButtonWidget protectButton = ButtonWidget.builder(Text.translatable("screen.botumi.protect"), btn -> {
             if (MinecraftClient.getInstance().interactionManager != null) {
                 MinecraftClient.getInstance().interactionManager.clickButton(this.handler.syncId, 3);
             }
         }).dimensions(cx + 26, cy - 12, 60, 20).build();
 
         this.addDrawableChild(this.toggleButton);
-        this.addDrawableChild(this.prevButton);
-        this.addDrawableChild(this.nextButton);
-        this.addDrawableChild(this.protectButton);
+        this.addDrawableChild(prevButton);
+        this.addDrawableChild(nextButton);
+        this.addDrawableChild(protectButton);
         updateButtonText();
     }
 
