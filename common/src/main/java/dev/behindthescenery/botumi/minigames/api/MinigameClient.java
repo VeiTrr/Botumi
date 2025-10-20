@@ -27,4 +27,9 @@ public class MinigameClient extends Screen {
         parent.close();
         super.close();
     }
+
+    @Override
+    public boolean shouldPause() {
+        return false;
+    }
 }

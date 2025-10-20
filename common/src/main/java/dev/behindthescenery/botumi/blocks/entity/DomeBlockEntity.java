@@ -6,27 +6,32 @@ import dev.behindthescenery.botumi.util.StructureGuard;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.NamedScreenHandlerFactory;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraft.world.explosion.Explosion;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static dev.behindthescenery.botumi.client.render.DomeBlockEntityRenderer.normPi;
 
@@ -36,7 +41,8 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     private final java.util.Map<BlockPos, Integer> barrierTtl = new java.util.HashMap<>();
     int tickCounter = 0;
     private String protectedStructureId = "";
-    private boolean enabled = true;
+    private boolean enabled = false;
+    private boolean debugMode = false;
     private double radius = 70.0;
     private boolean useStructureCenter = true;
     private boolean useStructureRadius = false;
@@ -48,6 +54,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     private double centerY;
     private double centerZ;
 
+    private int destroyCountdownTicks = -1;
 
     public DomeBlockEntity(BlockPos pos, BlockState state) {
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
@@ -66,10 +73,151 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             domeBlockEntity.markChanged();
         }
 
-        if (world instanceof ServerWorld sw && domeBlockEntity.enabled) {
-            domeBlockEntity.enforceBarrier(sw);
-            domeBlockEntity.decayTempColliders(sw);
+        if (world instanceof ServerWorld sw) {
+            if (domeBlockEntity.enabled) {
+                domeBlockEntity.enforceBarrier(sw);
+                domeBlockEntity.decayTempColliders(sw);
+            }
+
+            if (domeBlockEntity.destroyCountdownTicks >= 0) {
+                domeBlockEntity.destroyCountdownTicks--;
+
+                if (domeBlockEntity.tickCounter == 0) {
+                    domeBlockEntity.syncOpenScreens(sw);
+                }
+
+                if (domeBlockEntity.destroyCountdownTicks == 0) {
+                    domeBlockEntity.performStructureDestruction(sw);
+                    domeBlockEntity.syncOpenScreens(sw);
+                }
+            }
         }
+    }
+
+    private void syncOpenScreens(ServerWorld sw) {
+        for (PlayerEntity player : sw.getPlayers()) {
+            if (player.currentScreenHandler instanceof DomeScreenHandler handler && handler.isForBlockEntity(this)) {
+                handler.syncFromBlockEntity();
+            }
+        }
+    }
+
+    public void scheduleStructureDestruction() {
+        if (this.world instanceof ServerWorld) {
+            if (this.destroyCountdownTicks < 0 && this.protectedStructureId != null && !this.protectedStructureId.isEmpty()) {
+                this.enabled = false;
+                this.destroyCountdownTicks = 25 * 20;
+                markChanged();
+            }
+        }
+    }
+
+    public boolean isDestroyScheduled() {
+        return this.destroyCountdownTicks >= 0;
+    }
+
+    public int getDestroyCountdownSeconds() {
+        return this.destroyCountdownTicks < 0 ? 0 : (this.destroyCountdownTicks + 19) / 20;
+    }
+
+    private void performStructureDestruction(ServerWorld sw) {
+        if (this.protectedStructureId == null || this.protectedStructureId.isEmpty()) {
+            this.destroyCountdownTicks = -1;
+            this.enabled = false;
+            markChanged();
+            return;
+        }
+
+        Box b = StructureGuard.getStructureData(sw, this.pos, this.protectedStructureId);
+
+        final double R = Math.max(0.5, getRenderRadius());
+        final Vec3d c = getDomeBaseCenter();
+
+        if (b == null) {
+            b = new Box(
+                    Math.floor(c.x - R), Math.floor(c.y - 1), Math.floor(c.z - R),
+                    Math.ceil(c.x + R), Math.ceil(c.y + R), Math.ceil(c.z + R)
+            );
+        }
+
+
+        int minX = (int) Math.floor(b.minX);
+        int minY = (int) Math.floor(b.minY);
+        int minZ = (int) Math.floor(b.minZ);
+        int maxX = (int) Math.ceil(b.maxX);
+        int maxY = (int) Math.ceil(b.maxY);
+        int maxZ = (int) Math.ceil(b.maxZ);
+
+        List<BlockPos> toRemove = new ArrayList<>();
+        BlockPos.Mutable m = new BlockPos.Mutable();
+
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    m.set(x, y, z);
+                    if (!sw.isInBuildLimit(m)) continue;
+
+                    double dx = (x + 0.5) - c.x;
+                    double dy = (y + 0.5) - c.y;
+                    double dz = (z + 0.5) - c.z;
+
+                    if (dy < -0.5 || dy > R + 0.5) continue;
+                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist > R + 1.0) continue;
+
+                    BlockState st = sw.getBlockState(m);
+                    if (st.isAir() || st.isOf(Blocks.BARRIER)) continue;
+
+                    toRemove.add(m.toImmutable());
+                }
+            }
+        }
+
+        if (!toRemove.isEmpty()) {
+
+            int maxExplosions = 32;
+            int step = Math.max(1, toRemove.size() / maxExplosions);
+
+            for (int i = 0; i < toRemove.size(); i += step) {
+                BlockPos p = toRemove.get(i);
+                double ex = p.getX() + 0.5;
+                double ey = p.getY() + 0.5;
+                double ez = p.getZ() + 0.5;
+
+                float power = 4.2f;
+
+                sw.createExplosion(null, Explosion.createDamageSource(sw, null), null, ex, ey, ez, 4.0F, false, World.ExplosionSourceType.TNT);
+            }
+
+            for (BlockPos p : toRemove) {
+                if (!sw.isInBuildLimit(p)) continue;
+                BlockState st = sw.getBlockState(p);
+                if (!st.isAir() && !st.isOf(Blocks.BARRIER)) {
+                    sw.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+                }
+            }
+
+            sw.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, c.x, c.y + 0.5, c.z, 1, 0, 0, 0, 0.0);
+            sw.playSound(null, c.x, c.y + 0.5, c.z, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 0.9f, 0.9f);
+        }
+
+        this.destroyCountdownTicks = -1;
+        this.enabled = false;
+        this.protectedStructureId = "";
+        this.recalcEffectiveRadius();
+        markChanged();
+    }
+
+
+    private void spawnExplosionEffect(ServerWorld sw, BlockPos center) {
+        double x = center.getX() + 0.5;
+        double y = center.getY() + 0.5;
+        double z = center.getZ() + 0.5;
+
+        sw.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z, 1, 0, 0, 0, 0.0);
+        sw.spawnParticles(ParticleTypes.EXPLOSION, x, y, z, 8, 0.4, 0.4, 0.4, 0.05);
+
+        sw.playSound(null, x, y, z, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 1.0f, 1.0f);
     }
 
     private boolean isAtGate(double py, double angle, double radius) {
@@ -189,7 +337,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
                 c.x + R + 2.0, c.y + R + 2.0, c.z + R + 2.0
         );
 
-        for (Entity e : sw.getOtherEntities(null, query)) {
+        for (var e : sw.getOtherEntities(null, query)) {
             if (e instanceof PlayerEntity pe && pe.isSpectator()) continue;
 
             final Vec3d centerNow = e.getBoundingBox().getCenter();
@@ -202,7 +350,6 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             }
         }
     }
-
 
     public String getProtectedStructureId() {
         return protectedStructureId;
@@ -288,6 +435,15 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         markChanged();
     }
 
+    public boolean isDebugMode() {
+        return debugMode;
+    }
+
+    public void setDebugMode(boolean value) {
+        this.debugMode = value;
+        markChanged();
+    }
+
     public Vec3d getDomeBaseCenter() {
         return new Vec3d(centerX, centerY, centerZ);
     }
@@ -311,6 +467,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         else this.protectedStructureId = "";
 
         this.enabled = nbt.getBoolean("ProtectedEnabled");
+        this.debugMode = nbt.getBoolean("DebugMode");
 
         if (nbt.contains("Radius")) this.radius = Math.max(1.0, nbt.getDouble("Radius"));
         if (nbt.contains("useStructureСenter")) this.useStructureCenter = nbt.getBoolean("useStructureСenter");
@@ -326,6 +483,8 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         if (nbt.contains("DomeCenterX")) this.centerX = nbt.getDouble("DomeCenterX");
         if (nbt.contains("DomeCenterY")) this.centerY = nbt.getDouble("DomeCenterY");
         if (nbt.contains("DomeCenterZ")) this.centerZ = nbt.getDouble("DomeCenterZ");
+
+        this.destroyCountdownTicks = nbt.contains("DestroyCountdown") ? nbt.getInt("DestroyCountdown") : -1;
     }
 
     @Override
@@ -335,6 +494,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             nbt.putString("ProtectedStructureId", this.protectedStructureId);
         }
         nbt.putBoolean("ProtectedEnabled", this.enabled);
+        nbt.putBoolean("DebugMode", this.debugMode);
         nbt.putDouble("Radius", Math.max(1.0, this.radius));
         nbt.putBoolean("useStructureСenter", this.useStructureCenter);
         nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
@@ -345,6 +505,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         nbt.putDouble("DomeCenterX", this.centerX);
         nbt.putDouble("DomeCenterY", this.centerY);
         nbt.putDouble("DomeCenterZ", this.centerZ);
+        nbt.putInt("DestroyCountdown", this.destroyCountdownTicks);
     }
 
     @Override
@@ -352,6 +513,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         NbtCompound nbt = new NbtCompound();
         nbt.putString("ProtectedStructureId", this.protectedStructureId);
         nbt.putBoolean("ProtectedEnabled", this.enabled);
+        nbt.putBoolean("DebugMode", this.debugMode);
         nbt.putDouble("Radius", Math.max(1.0, this.radius));
         nbt.putBoolean("useStructureСenter", this.useStructureCenter);
         nbt.putBoolean("UseStructureRadius", this.useStructureRadius);
@@ -362,6 +524,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         nbt.putDouble("DomeCenterX", this.centerX);
         nbt.putDouble("DomeCenterY", this.centerY);
         nbt.putDouble("DomeCenterZ", this.centerZ);
+        nbt.putInt("DestroyCountdown", this.destroyCountdownTicks);
         return nbt;
     }
 
@@ -396,7 +559,7 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
                     this.computedRadius = Math.max(1.0, this.radius);
                 }
                 this.centerX = b.getCenter().x;
-                this.centerY = this.pos.getY();
+                this.centerY = this.pos.getY() - 42;
                 this.centerZ = b.getCenter().z;
             }
         }

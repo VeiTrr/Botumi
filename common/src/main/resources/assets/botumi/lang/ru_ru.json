@@ -29,5 +29,10 @@
   "screen.botumi.type": "Тип: %1$s",
   "screen.botumi.yes": "Да",
   "screen.botumi.minigame.completed": "Мини-игра завершена!",
-  "screen.botumi.close": "Закрыть"
+  "screen.botumi.close": "Закрыть",
+  "screen.botumi.remove_protection": "Убрать защиту",
+  "screen.botumi.remove_protection_wait": "Защита отключена...",
+  "screen.botumi.will_be_destroyed_in": "Будет уничтожено через %1$s секунд!",
+  "screen.botumi.remove_protection_hint": "Защита удалена, структура может быть уничтожена кем угодно.",
+  "gui.loading": "Загрузка..."
 }

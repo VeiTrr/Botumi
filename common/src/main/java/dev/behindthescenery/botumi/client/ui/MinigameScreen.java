@@ -57,4 +57,9 @@ public class MinigameScreen extends HandledScreen<MinigameScreenHandler> {
     @Override
     protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
     }
+
+    @Override
+    public boolean shouldPause() {
+        return false;
+    }
 }

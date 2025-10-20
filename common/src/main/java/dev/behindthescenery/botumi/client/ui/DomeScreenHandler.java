@@ -22,7 +22,11 @@ public class DomeScreenHandler extends ScreenHandler {
     // 4..(4+MAX_ID_CHARS-1): savedId chars
     // 4+MAX_ID_CHARS: selectedIdLen
     // 5+MAX_ID_CHARS .. (5+2*MAX_ID_CHARS-1): selectedId chars
-    public static final int PROPS = 5 + 2 * MAX_ID_CHARS;
+    // 5+2*MAX_ID_CHARS: debugMode (0/1)
+    // 6+2*MAX_ID_CHARS: destroyCountdownSeconds
+    public static final int IDX_DEBUG = 5 + 2 * MAX_ID_CHARS;
+    public static final int IDX_COUNTDOWN = 6 + 2 * MAX_ID_CHARS;
+    public static final int PROPS = 7 + 2 * MAX_ID_CHARS;
 
     private final PropertyDelegate properties;
     private DomeBlockEntity beRef;
@@ -54,6 +58,14 @@ public class DomeScreenHandler extends ScreenHandler {
         selectedIndex = 0;
     }
 
+    public void syncFromBlockEntity() {
+        pushFromBlockEntity();
+    }
+
+    public boolean isForBlockEntity(DomeBlockEntity be) {
+        return this.beRef == be;
+    }
+
     private void pushFromBlockEntity() {
         if (beRef == null) return;
         properties.set(0, beRef.isEnabled() ? 1 : 0);
@@ -66,6 +78,9 @@ public class DomeScreenHandler extends ScreenHandler {
         int selLenIdx = 4 + MAX_ID_CHARS;
         int selCharsStart = 5 + MAX_ID_CHARS;
         writeString(selLenIdx, selCharsStart, sel);
+
+        properties.set(IDX_DEBUG, beRef.isDebugMode() ? 1 : 0);
+        properties.set(IDX_COUNTDOWN, beRef.getDestroyCountdownSeconds());
 
         sendContentUpdates();
     }
@@ -105,6 +120,9 @@ public class DomeScreenHandler extends ScreenHandler {
                     beRef.setEnabled(true);
                 }
             }
+            case 4 -> {
+                beRef.scheduleStructureDestruction();
+            }
             default -> {
                 return false;
             }
@@ -143,6 +161,14 @@ public class DomeScreenHandler extends ScreenHandler {
         int selLenIdx = 4 + MAX_ID_CHARS;
         int selCharsStart = 5 + MAX_ID_CHARS;
         return readString(selLenIdx, selCharsStart);
+    }
+
+    public boolean isDebugModeClient() {
+        return properties.get(IDX_DEBUG) == 1;
+    }
+
+    public int getDestroyCountdownSecondsClient() {
+        return Math.max(0, properties.get(IDX_COUNTDOWN));
     }
 
     private String readString(int lenIndex, int charsStart) {

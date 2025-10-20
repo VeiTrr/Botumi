@@ -2,7 +2,6 @@ package dev.behindthescenery.botumi.client;
 
 import dev.behindthescenery.botumi.Botumi;
 import dev.behindthescenery.botumi.config.BConfig;
-import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.util.Identifier;
 
@@ -13,16 +12,19 @@ public final class HuskTextureRules {
     }
 
     public static Identifier selectTexture(ZombieEntity entity, Identifier TEX_DEFAULT) {
-        if (entity.getPassengerList().stream().noneMatch(e -> e instanceof ArmorStandEntity)) {
-            return TEX_DEFAULT;
-        } else {
-            ArmorStandEntity armorStand = (ArmorStandEntity) entity.getPassengerList().stream()
-                    .filter(e -> e instanceof ArmorStandEntity)
-                    .findFirst()
-                    .orElse(null);
-            if (armorStand == null) return TEX_DEFAULT;
-
-            String name = armorStand.getCustomName() != null ? armorStand.getCustomName().getString() : "";
+        if (entity.getCustomName() != null || entity.getCommandTags().stream().anyMatch(tag -> tag.contains(BConfig.INSTANCE.CustomHuskTag))) {
+            String name = "";
+            if (entity.getCustomName() != null) {
+                name = entity.getCustomName().getString();
+                entity.addCommandTag(name);
+                entity.setCustomName(null);
+            }
+            for (String tag : entity.getCommandTags()) {
+                if (tag.contains(BConfig.INSTANCE.CustomHuskTag)) {
+                    name = tag;
+                    break;
+                }
+            }
             String key = BConfig.INSTANCE.CustomHuskTag;
             if (key == null || key.isBlank()) return null;
             if (name.isBlank() || !name.contains(key)) return TEX_DEFAULT;
@@ -41,7 +43,7 @@ public final class HuskTextureRules {
                 path = path.replace("bot_husk", "bot_husk" + (variant));
                 return TEX_BASE.withPath(path);
             }
-            return TEX_DEFAULT;
         }
+        return TEX_DEFAULT;
     }
 }

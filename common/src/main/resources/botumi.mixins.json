@@ -8,7 +8,6 @@
     "Render.TransculentBlock"
   ],
   "mixins": [
-    "HuskEntityRemoveMixin",
     "BlockProtect.BlockItemMixin",
     "BlockProtect.EndermanGoalsMixin$EndermanPickUpGoalMixin",
     "BlockProtect.EndermanGoalsMixin$EndermanPlaceGoalMixin",

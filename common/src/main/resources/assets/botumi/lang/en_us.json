@@ -25,9 +25,14 @@
   "screen.botumi.player_recorded": "Player Recorded",
   "screen.botumi.structure_id": "Structure ID: %1$s",
   "screen.botumi.protect": "Protect",
+  "screen.botumi.remove_protection": "Remove Protection",
+  "screen.botumi.remove_protection_wait": "Protection removed...",
+  "screen.botumi.will_be_destroyed_in": "Will be destroyed in %1$s seconds!",
+  "screen.botumi.remove_protection_hint": "Protection removed, structure can be destroyed by anyone.",
   "screen.botumi.protection": "Protection: %1$s",
   "screen.botumi.saved_structure": "Saved Structure: %1$s",
   "screen.botumi.selected_structure": "Selected Structure: %1$s",
   "screen.botumi.minigame.completed": "Minigame Completed!",
-  "screen.botumi.close": "Close"
+  "screen.botumi.close": "Close",
+  "gui.loading": "Loading..."
 }
