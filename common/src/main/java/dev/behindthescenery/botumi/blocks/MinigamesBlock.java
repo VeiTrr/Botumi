@@ -22,6 +22,11 @@ import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldAccess;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.Nullable;
 
 public class MinigamesBlock extends BlockWithEntity implements BlockEntityProvider, Waterloggable {
@@ -89,10 +94,29 @@ public class MinigamesBlock extends BlockWithEntity implements BlockEntityProvid
     }
 
     @Override
+    public void onPlaced(World world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack itemStack) {
+        super.onPlaced(world, pos, state, placer, itemStack);
+        if (!world.isClient) {
+            BlockEntity be = world.getBlockEntity(pos);
+            if (be instanceof MinigamesBlockEntity mbe) {
+                mbe.assignDefaultPlayableTypeIfUnset();
+            }
+        }
+    }
+
+    @Override
     protected ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
         if (!world.isClient) {
             BlockEntity be = world.getBlockEntity(pos);
             if (be instanceof MinigamesBlockEntity minibe) {
+                if (player.isSneaking()) {
+                    minibe.cycleMinigameType();
+                    player.sendMessage(Text.translatable("screen.botumi.minigame_set", minibe.getMinigameDisplayName()).formatted(Formatting.AQUA), true);
+                    player.playSound(SoundEvents.BLOCK_NOTE_BLOCK_CHIME.value(), 1.0f, 1.2f);
+                    return ActionResult.SUCCESS;
+                }
+
+                minibe.assignDefaultPlayableTypeIfUnset();
                 player.openHandledScreen(minibe);
                 return ActionResult.CONSUME;
             }

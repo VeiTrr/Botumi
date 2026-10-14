@@ -81,6 +81,10 @@ public final class StructureGuard {
         Vec3d center = Vec3d.ofCenter(pos);
         for (Map.Entry<RegistryKey<Structure>, Structure> e : registry.getEntrySet()) {
             Identifier structId = e.getKey().getValue();
+            // Fast-path: Only check structures belonging to Botumi or containing botumi
+            if (!structId.getNamespace().equals("botumi") && !structId.getPath().contains("botumi")) {
+                continue;
+            }
             String idStr = structId.toString();
             Box b = getStructureData(world, pos, idStr);
             if (b != null && b.contains(center)) {
@@ -100,7 +104,25 @@ public final class StructureGuard {
         List<StructureStart> starts = world.getStructureAccessor()
                 .getStructureStarts(ChunkSectionPos.from(structurePos), structureType);
 
-        if (starts == null || starts.isEmpty()) return null;
+        if (starts == null || starts.isEmpty()) {
+            starts = new ArrayList<>();
+            ChunkSectionPos origin = ChunkSectionPos.from(structurePos);
+            for (int dx = -5; dx <= 5; dx++) {
+                for (int dz = -5; dz <= 5; dz++) {
+                    ChunkSectionPos csp = ChunkSectionPos.from(origin.getSectionX() + dx, origin.getSectionY(), origin.getSectionZ() + dz);
+                    List<StructureStart> list = world.getStructureAccessor().getStructureStarts(csp, structureType);
+                    if (list != null) {
+                        for (StructureStart s : list) {
+                            if (s != null && s.hasChildren() && !starts.contains(s)) {
+                                starts.add(s);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (starts.isEmpty()) return null;
 
         Box overall = null;
         for (StructureStart start : starts) {

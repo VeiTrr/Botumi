@@ -26,7 +26,13 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
 
     public static final Identifier ID = Identifier.of(Botumi.MOD_ID, "minigames_block_entity");
 
-    private String minigameType = "botumi:minigame_debug";
+    public static final String[] PLAYABLE_MINIGAMES = {
+            "botumi:minigame_wires",
+            "botumi:minigame_memory",
+            "botumi:minigame_frequency"
+    };
+
+    private String minigameType = "botumi:minigame_wires";
     private boolean completed = false;
     @Nullable
     private UUID completedBy = null;
@@ -37,6 +43,40 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
 
     public MinigamesBlockEntity(BlockPos pos, BlockState state) {
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
+        assignDefaultPlayableTypeIfUnset();
+    }
+
+    public void assignDefaultPlayableTypeIfUnset() {
+        if (this.minigameType == null || this.minigameType.isEmpty() || "botumi:minigame_debug".equals(this.minigameType)) {
+            int idx = Math.floorMod(this.pos.getX() * 31 + this.pos.getY() * 17 + this.pos.getZ(), PLAYABLE_MINIGAMES.length);
+            this.minigameType = PLAYABLE_MINIGAMES[idx];
+            markChanged();
+        }
+    }
+
+    public void cycleMinigameType() {
+        int currentIndex = 0;
+        for (int i = 0; i < PLAYABLE_MINIGAMES.length; i++) {
+            if (PLAYABLE_MINIGAMES[i].equals(this.minigameType)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        int nextIndex = (currentIndex + 1) % PLAYABLE_MINIGAMES.length;
+        this.minigameType = PLAYABLE_MINIGAMES[nextIndex];
+        this.completed = false;
+        this.completedBy = null;
+        this.actionCode = 0;
+        markChanged();
+    }
+
+    public String getMinigameDisplayName() {
+        return switch (this.minigameType) {
+            case "botumi:minigame_wires" -> "Circuit Wires";
+            case "botumi:minigame_memory" -> "Memory Matrix";
+            case "botumi:minigame_frequency" -> "Harmonic Resonance";
+            default -> this.minigameType;
+        };
     }
 
     public static void uuidToInts(@Nullable UUID uuid, int[] out, int offset) {
@@ -122,6 +162,9 @@ public class MinigamesBlockEntity extends BlockEntity implements NamedScreenHand
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         super.readNbt(nbt, registryLookup);
         this.minigameType = nbt.getString("MinigameType");
+        if (this.minigameType == null || this.minigameType.isEmpty() || "botumi:minigame_debug".equals(this.minigameType)) {
+            assignDefaultPlayableTypeIfUnset();
+        }
         this.completed = nbt.getBoolean("Completed");
         if (nbt.contains("CompletedByMost") && nbt.contains("CompletedByLeast")) {
             long most = nbt.getLong("CompletedByMost");

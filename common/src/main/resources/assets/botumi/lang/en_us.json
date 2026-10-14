@@ -27,6 +27,7 @@
   "screen.botumi.protect": "Protect",
   "screen.botumi.remove_protection": "Remove Protection",
   "screen.botumi.remove_protection_wait": "Protection removed...",
+  "screen.botumi.self_destruct_warning": "⚠ SELF-DESTRUCT INITIATED ⚠",
   "screen.botumi.will_be_destroyed_in": "Will be destroyed in %1$s seconds!",
   "screen.botumi.remove_protection_hint": "Protection removed, structure can be destroyed by anyone.",
   "screen.botumi.protection": "Protection: %1$s",
@@ -34,5 +35,8 @@
   "screen.botumi.selected_structure": "Selected Structure: %1$s",
   "screen.botumi.minigame.completed": "Minigame Completed!",
   "screen.botumi.close": "Close",
-  "gui.loading": "Loading..."
+  "gui.loading": "Loading...",
+  "entity.botumi.dome_guardian": "Dome Guardian",
+  "entity.botumi.core_sentinel": "Core Sentinel",
+  "screen.botumi.minigame_set": "Minigame set: %1$s"
 }

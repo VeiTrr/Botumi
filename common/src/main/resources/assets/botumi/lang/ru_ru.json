@@ -32,7 +32,11 @@
   "screen.botumi.close": "Закрыть",
   "screen.botumi.remove_protection": "Убрать защиту",
   "screen.botumi.remove_protection_wait": "Защита отключена...",
+  "screen.botumi.self_destruct_warning": "⚠ САМОУНИЧТОЖЕНИЕ ЗАПУЩЕНО ⚠",
   "screen.botumi.will_be_destroyed_in": "Будет уничтожено через %1$s секунд!",
   "screen.botumi.remove_protection_hint": "Защита удалена, структура может быть уничтожена кем угодно.",
-  "gui.loading": "Загрузка..."
+  "gui.loading": "Загрузка...",
+  "entity.botumi.dome_guardian": "Страж Купола",
+  "entity.botumi.core_sentinel": "Часовой Ядра",
+  "screen.botumi.minigame_set": "Выбрана мини-игра: %1$s"
 }

@@ -37,6 +37,32 @@ public class BotumiFabricRegistry {
                 Identifier.of(Botumi.MOD_ID, "dome"),
                 new ScreenHandlerType<>(DomeScreenHandler::new, FeatureFlags.VANILLA_FEATURES)
         );
+
+        BotumiRegistry.DOME_GUARDIAN_ENTITY_TYPE = Registry.register(
+                Registries.ENTITY_TYPE,
+                Identifier.of(Botumi.MOD_ID, "dome_guardian"),
+                net.minecraft.entity.EntityType.Builder.create(dev.behindthescenery.botumi.entity.DomeGuardianEntity::new, net.minecraft.entity.SpawnGroup.MONSTER)
+                        .dimensions(0.9f, 2.1f)
+                        .build()
+        );
+
+        BotumiRegistry.CORE_SENTINEL_ENTITY_TYPE = Registry.register(
+                Registries.ENTITY_TYPE,
+                Identifier.of(Botumi.MOD_ID, "core_sentinel"),
+                net.minecraft.entity.EntityType.Builder.create(dev.behindthescenery.botumi.entity.CoreSentinelBossEntity::new, net.minecraft.entity.SpawnGroup.MONSTER)
+                        .dimensions(1.4f, 2.7f)
+                        .build()
+        );
+
+        net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(
+                BotumiRegistry.DOME_GUARDIAN_ENTITY_TYPE,
+                dev.behindthescenery.botumi.entity.DomeGuardianEntity.createGuardianAttributes()
+        );
+
+        net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(
+                BotumiRegistry.CORE_SENTINEL_ENTITY_TYPE,
+                dev.behindthescenery.botumi.entity.CoreSentinelBossEntity.createBossAttributes()
+        );
     }
 
     private static <T extends BlockEntity> BlockEntityType<T> registerBlockEntity(Identifier id,

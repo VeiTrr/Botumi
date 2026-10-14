@@ -24,8 +24,11 @@ public class MinigameClient extends Screen {
 
     @Override
     public void close() {
-        parent.close();
-        super.close();
+        if (parent != null) {
+            parent.close();
+        } else {
+            super.close();
+        }
     }
 
     @Override

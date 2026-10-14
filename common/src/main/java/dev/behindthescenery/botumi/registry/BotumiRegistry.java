@@ -17,6 +17,11 @@ import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+import dev.behindthescenery.botumi.entity.CoreSentinelBossEntity;
+import dev.behindthescenery.botumi.entity.DomeGuardianEntity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnGroup;
+
 public class BotumiRegistry {
 
     public static final Block MINIGAMES_BLOCK = new MinigamesBlock();
@@ -25,6 +30,10 @@ public class BotumiRegistry {
     public static final Item DOME_BLOCK_ITEM = new BlockItem(DOME_BLOCK, new Item.Settings());
     public static BlockEntityType<MinigamesBlockEntity> MINIGAMES_BLOCK_ENTITY;
     public static BlockEntityType<DomeBlockEntity> DOME_BLOCK_ENTITY;
+
+    public static EntityType<DomeGuardianEntity> DOME_GUARDIAN_ENTITY_TYPE;
+    public static EntityType<CoreSentinelBossEntity> CORE_SENTINEL_ENTITY_TYPE;
+
     public static final ItemGroup BOTUMI_ITEM_GROUP = ItemGroup.create(null, -1)
             .displayName(Text.translatable("itemGroup.botumi"))
             .icon(() -> new ItemStack(BotumiRegistry.MINIGAMES_BLOCK_ITEM))

@@ -36,6 +36,10 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import net.minecraft.item.Items;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
+
 import java.util.Optional;
 
 public final class MinigameActions {
@@ -47,7 +51,17 @@ public final class MinigameActions {
         if (!(be.getWorld() instanceof ServerWorld sw)) return 0;
 
         NbtCompound action = resolveAction(sw, be);
-        if (action == null || action.isEmpty()) return 0;
+        if (action == null || action.isEmpty()) {
+            if (player != null) {
+                player.addExperience(35);
+                ItemStack reward = new ItemStack(Items.EMERALD, 2 + sw.random.nextInt(3));
+                if (!player.getInventory().insertStack(reward)) {
+                    player.dropItem(reward, false);
+                }
+                sw.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundCategory.PLAYERS, 1.0F, 1.0F);
+            }
+            return 1;
+        }
 
         String type = action.getString("type");
         NbtCompound data = action.getCompound("data");

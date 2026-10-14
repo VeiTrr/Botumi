@@ -3,9 +3,12 @@ package dev.behindthescenery.botumi.blocks.entity;
 import dev.behindthescenery.botumi.Botumi;
 import dev.behindthescenery.botumi.client.ui.DomeScreenHandler;
 import dev.behindthescenery.botumi.util.StructureGuard;
+import dev.behindthescenery.botumi.util.TerrainRegenerator;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
@@ -27,11 +30,23 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraft.world.explosion.Explosion;
-import org.jetbrains.annotations.Nullable;
+import net.minecraft.block.StainedGlassBlock;
+import net.minecraft.entity.FallingBlockEntity;
+import net.minecraft.particle.BlockStateParticleEffect;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.Heightmap;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import dev.behindthescenery.botumi.client.render.DomeBlockEntityRenderer;
+import dev.behindthescenery.botumi.entity.CoreSentinelBossEntity;
+import dev.behindthescenery.botumi.entity.DomeGuardianEntity;
+import dev.behindthescenery.botumi.registry.BotumiRegistry;
+import net.minecraft.entity.LivingEntity;
+import org.jetbrains.annotations.Nullable;
 
 import static dev.behindthescenery.botumi.client.render.DomeBlockEntityRenderer.normPi;
 
@@ -55,6 +70,16 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     private double centerZ;
 
     private int destroyCountdownTicks = -1;
+    private boolean isDestroying = false;
+    private final List<BlockPos> destructionQueue = new ArrayList<>();
+    private int destructionSoundTick = 0;
+
+    private boolean isRestoring = false;
+    private final List<TerrainRegenerator.BlockRestoreEntry> restorationQueue = new ArrayList<>();
+    private BlockState domeNaturalState = Blocks.AIR.getDefaultState();
+
+    private boolean bossSpawned = false;
+    private boolean bossDefeated = false;
 
     public DomeBlockEntity(BlockPos pos, BlockState state) {
         super(Registries.BLOCK_ENTITY_TYPE.get(ID), pos, state);
@@ -77,6 +102,10 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             if (domeBlockEntity.enabled) {
                 domeBlockEntity.enforceBarrier(sw);
                 domeBlockEntity.decayTempColliders(sw);
+
+                if (domeBlockEntity.tickCounter % 20 == 0) {
+                    domeBlockEntity.maintainGuardians(sw);
+                }
             }
 
             if (domeBlockEntity.destroyCountdownTicks >= 0) {
@@ -91,6 +120,12 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
                     domeBlockEntity.syncOpenScreens(sw);
                 }
             }
+
+            if (domeBlockEntity.isDestroying) {
+                domeBlockEntity.tickDestructionQueue(sw);
+            } else if (domeBlockEntity.isRestoring) {
+                domeBlockEntity.tickRestorationQueue(sw);
+            }
         }
     }
 
@@ -103,17 +138,21 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     }
 
     public void scheduleStructureDestruction() {
+        scheduleStructureDestruction(25 * 20);
+    }
+
+    public void scheduleStructureDestruction(int countdownTicks) {
         if (this.world instanceof ServerWorld) {
             if (this.destroyCountdownTicks < 0 && this.protectedStructureId != null && !this.protectedStructureId.isEmpty()) {
                 this.enabled = false;
-                this.destroyCountdownTicks = 25 * 20;
+                this.destroyCountdownTicks = Math.max(1, countdownTicks);
                 markChanged();
             }
         }
     }
 
     public boolean isDestroyScheduled() {
-        return this.destroyCountdownTicks >= 0;
+        return this.destroyCountdownTicks >= 0 || this.isDestroying || this.isRestoring;
     }
 
     public int getDestroyCountdownSeconds() {
@@ -129,7 +168,6 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         }
 
         Box b = StructureGuard.getStructureData(sw, this.pos, this.protectedStructureId);
-
         final double R = Math.max(0.5, getRenderRadius());
         final Vec3d c = getDomeBaseCenter();
 
@@ -140,7 +178,6 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             );
         }
 
-
         int minX = (int) Math.floor(b.minX);
         int minY = (int) Math.floor(b.minY);
         int minZ = (int) Math.floor(b.minZ);
@@ -148,96 +185,289 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         int maxY = (int) Math.ceil(b.maxY);
         int maxZ = (int) Math.ceil(b.maxZ);
 
-        List<BlockPos> toRemove = new ArrayList<>();
+        destructionQueue.clear();
         BlockPos.Mutable m = new BlockPos.Mutable();
+
+        List<BlockPos> glassAndLights = new ArrayList<>();
+        List<BlockPos> roofsAndUpper = new ArrayList<>();
+        List<BlockPos> wallsAndFloors = new ArrayList<>();
 
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     m.set(x, y, z);
                     if (!sw.isInBuildLimit(m)) continue;
+                    if (m.equals(this.pos)) continue; // KEEP DOME BLOCK ENTITY ALIVE UNTIL THE VERY END!
 
                     double dx = (x + 0.5) - c.x;
                     double dy = (y + 0.5) - c.y;
                     double dz = (z + 0.5) - c.z;
 
-                    if (dy < -0.5 || dy > R + 0.5) continue;
+                    if (dy < -0.5 || dy > R + 2.0) continue;
                     double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    if (dist > R + 1.0) continue;
+                    if (dist > R + 2.0) continue;
 
                     BlockState st = sw.getBlockState(m);
                     if (st.isAir() || st.isOf(Blocks.BARRIER)) continue;
 
-                    toRemove.add(m.toImmutable());
+                    if (st.isOf(Blocks.LIGHT) || st.getBlock() instanceof StainedGlassBlock || st.isOf(Blocks.GLASS) || st.isOf(Blocks.TINTED_GLASS) || st.isOf(Blocks.LANTERN) || st.isOf(Blocks.SOUL_LANTERN)) {
+                        glassAndLights.add(m.toImmutable());
+                    } else if (y >= this.pos.getY()) {
+                        roofsAndUpper.add(m.toImmutable());
+                    } else {
+                        wallsAndFloors.add(m.toImmutable());
+                    }
                 }
             }
         }
 
-        if (!toRemove.isEmpty()) {
+        Collections.shuffle(glassAndLights);
+        roofsAndUpper.sort((p1, p2) -> Integer.compare(p2.getY(), p1.getY()));
+        wallsAndFloors.sort((p1, p2) -> Integer.compare(p2.getY(), p1.getY()));
 
-            int maxExplosions = 32;
-            int step = Math.max(1, toRemove.size() / maxExplosions);
+        // Stage 1: Shatter all lights & glass
+        destructionQueue.addAll(glassAndLights);
+        // Stage 2: Upper floors crumble
+        destructionQueue.addAll(roofsAndUpper);
+        // Stage 3: Lower walls & foundation collapse
+        destructionQueue.addAll(wallsAndFloors);
 
-            for (int i = 0; i < toRemove.size(); i += step) {
-                BlockPos p = toRemove.get(i);
-                double ex = p.getX() + 0.5;
-                double ey = p.getY() + 0.5;
-                double ez = p.getZ() + 0.5;
+        // Initial purge of defending hostiles and stray items/falling blocks
+        TerrainRegenerator.cleanEntities(sw, c, R);
 
-                float power = 4.2f;
-
-                sw.createExplosion(null, Explosion.createDamageSource(sw, null), null, ex, ey, ez, 4.0F, false, World.ExplosionSourceType.TNT);
-            }
-
-            for (BlockPos p : toRemove) {
-                if (!sw.isInBuildLimit(p)) continue;
-                BlockState st = sw.getBlockState(p);
-                if (!st.isAir() && !st.isOf(Blocks.BARRIER)) {
-                    sw.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
-                }
-            }
-
-            sw.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, c.x, c.y + 0.5, c.z, 1, 0, 0, 0, 0.0);
-            sw.playSound(null, c.x, c.y + 0.5, c.z, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 0.9f, 0.9f);
-        }
+        // Blinding core pulse at start
+        sw.spawnParticles(ParticleTypes.FLASH, this.pos.getX() + 0.5, this.pos.getY() + 1.5, this.pos.getZ() + 0.5, 3, 0, 0, 0, 0.0);
+        sw.spawnParticles(ParticleTypes.SONIC_BOOM, this.pos.getX() + 0.5, this.pos.getY() + 1.5, this.pos.getZ() + 0.5, 1, 0, 0, 0, 0.0);
+        sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.ENTITY_WITHER_SPAWN, SoundCategory.BLOCKS, 2.0f, 0.6f);
 
         this.destroyCountdownTicks = -1;
         this.enabled = false;
-        this.protectedStructureId = "";
-        this.recalcEffectiveRadius();
+        this.isDestroying = true;
+        this.destructionSoundTick = 0;
         markChanged();
     }
 
+    private void tickDestructionQueue(ServerWorld sw) {
+        if (destructionQueue.isEmpty()) {
+            final double R = Math.max(10.0, getRenderRadius());
+            Vec3d center = getDomeBaseCenter();
+            Box structureBounds = StructureGuard.getStructureData(sw, this.pos, protectedStructureId);
 
-    private void spawnExplosionEffect(ServerWorld sw, BlockPos center) {
-        double x = center.getX() + 0.5;
-        double y = center.getY() + 0.5;
-        double z = center.getZ() + 0.5;
+            // Transition from destruction to progressive bottom-up terrain restoration
+            TerrainRegenerator.RestorationPlan plan = TerrainRegenerator.createRestorationPlan(sw, center, R, structureBounds, this.pos);
+            this.restorationQueue.clear();
+            this.restorationQueue.addAll(plan.entries());
+            this.domeNaturalState = plan.domeNaturalState() != null ? plan.domeNaturalState() : Blocks.AIR.getDefaultState();
 
-        sw.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z, 1, 0, 0, 0, 0.0);
-        sw.spawnParticles(ParticleTypes.EXPLOSION, x, y, z, 8, 0.4, 0.4, 0.4, 0.05);
+            this.isDestroying = false;
+            this.isRestoring = true;
+            this.destructionSoundTick = 0;
+            this.protectedStructureId = "";
+            this.recalcEffectiveRadius();
+            markChanged();
 
-        sw.playSound(null, x, y, z, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 1.0f, 1.0f);
+            // Core transition pulse: from collapse to restoration
+            sw.spawnParticles(ParticleTypes.FLASH, this.pos.getX() + 0.5, this.pos.getY() + 1.5, this.pos.getZ() + 0.5, 2, 0, 0, 0, 0.0);
+            sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.BLOCKS, 1.5f, 1.2f);
+            return;
+        }
+
+        // Dynamically scale batch size so collapse progresses smoothly without lag
+        int count = Math.max(350, Math.min(1200, destructionQueue.size() / 30));
+        count = Math.min(count, destructionQueue.size());
+
+        for (int i = 0; i < count; i++) {
+            BlockPos p = destructionQueue.remove(0);
+            if (!sw.isInBuildLimit(p) || p.equals(this.pos)) continue;
+            BlockState st = sw.getBlockState(p);
+            if (!st.isAir() && !st.isOf(Blocks.BARRIER)) {
+                if (sw.random.nextFloat() < 0.06f && !st.isOf(Blocks.LIGHT)) {
+                    sw.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, st), p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, 12, 0.35, 0.35, 0.35, 0.15);
+                }
+                sw.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS | Block.FORCE_STATE | Block.SKIP_DROPS);
+            }
+        }
+
+        // Periodically purge any dropped items from broken attached blocks (torches, double flowers, signs)
+        final double R = Math.max(10.0, getRenderRadius());
+        Box area = new Box(this.pos).expand(R + 8.0);
+        for (ItemEntity item : sw.getEntitiesByClass(ItemEntity.class, area, e -> true)) {
+            item.discard();
+        }
+
+        destructionSoundTick++;
+        if (destructionSoundTick % 2 == 0 && !destructionQueue.isEmpty()) {
+            BlockPos p = destructionQueue.get(sw.random.nextInt(Math.min(count * 2, destructionQueue.size())));
+            sw.spawnParticles(ParticleTypes.EXPLOSION, p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, 2, 0.4, 0.4, 0.4, 0.05);
+            sw.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, 2, 0.3, 0.5, 0.3, 0.02);
+            if (destructionSoundTick % 4 == 0) {
+                sw.playSound(null, p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 0.8f, 0.8f + sw.random.nextFloat() * 0.4f);
+            }
+        }
+    }
+
+    private void tickRestorationQueue(ServerWorld sw) {
+        if (restorationQueue.isEmpty()) {
+            final double R = Math.max(10.0, getRenderRadius());
+            Vec3d center = getDomeBaseCenter();
+
+            // Final entity cleanup pass
+            TerrainRegenerator.cleanEntities(sw, center, R);
+
+            this.isRestoring = false;
+            markChanged();
+
+            // Final Cataclysmic Core Detonation!
+            sw.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, 4, 1.0, 1.0, 1.0, 0.0);
+            sw.spawnParticles(ParticleTypes.FLASH, this.pos.getX() + 0.5, this.pos.getY() + 1.5, this.pos.getZ() + 0.5, 2, 0, 0, 0, 0.0);
+            sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 2.0f, 0.5f);
+            sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.BLOCKS, 2.0f, 1.2f);
+
+            BlockState naturalState = this.domeNaturalState != null ? this.domeNaturalState : Blocks.AIR.getDefaultState();
+            sw.setBlockState(this.pos, naturalState, Block.NOTIFY_LISTENERS | Block.FORCE_STATE | Block.SKIP_DROPS);
+            return;
+        }
+
+        // Dynamically scale batch size so restoration progresses smoothly from bottom to top (~8-10 seconds for large craters)
+        int count = Math.max(600, Math.min(2500, restorationQueue.size() / 20));
+        count = Math.min(count, restorationQueue.size());
+
+        for (int i = 0; i < count; i++) {
+            TerrainRegenerator.BlockRestoreEntry entry = restorationQueue.remove(0);
+            BlockPos p = entry.pos();
+            if (!sw.isInBuildLimit(p) || p.equals(this.pos)) continue;
+
+            BlockState current = sw.getBlockState(p);
+            BlockState target = entry.state();
+            if (!current.equals(target)) {
+                if (current.hasBlockEntity()) {
+                    sw.removeBlockEntity(p);
+                }
+                sw.setBlockState(p, target, Block.NOTIFY_LISTENERS | Block.FORCE_STATE | Block.SKIP_DROPS);
+
+                if (sw.random.nextFloat() < 0.04f) {
+                    if (target.isOf(Blocks.GRASS_BLOCK) || target.isIn(net.minecraft.registry.tag.BlockTags.LEAVES) || target.isIn(net.minecraft.registry.tag.BlockTags.FLOWERS)) {
+                        sw.spawnParticles(ParticleTypes.HAPPY_VILLAGER, p.getX() + 0.5, p.getY() + 1.1, p.getZ() + 0.5, 2, 0.3, 0.3, 0.3, 0.02);
+                    } else if (!target.isAir()) {
+                        sw.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, target), p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, 4, 0.2, 0.2, 0.2, 0.1);
+                    }
+                }
+            }
+        }
+
+        // Periodically purge any dropped items or falling blocks in restoration zone
+        final double R = Math.max(10.0, getRenderRadius());
+        Box area = new Box(this.pos).expand(R + 8.0);
+        for (ItemEntity item : sw.getEntitiesByClass(ItemEntity.class, area, e -> true)) {
+            item.discard();
+        }
+        for (FallingBlockEntity falling : sw.getEntitiesByClass(FallingBlockEntity.class, area, e -> true)) {
+            falling.discard();
+        }
+
+        destructionSoundTick++;
+        if (destructionSoundTick % 3 == 0) {
+            sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.BLOCK_GRASS_PLACE, SoundCategory.BLOCKS, 0.9f, 0.9f + sw.random.nextFloat() * 0.3f);
+            if (destructionSoundTick % 6 == 0) {
+                sw.playSound(null, this.pos.getX() + 0.5, this.pos.getY() + 0.5, this.pos.getZ() + 0.5, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.BLOCKS, 0.8f, 1.0f + sw.random.nextFloat() * 0.4f);
+            }
+        }
+    }
+
+    private void maintainGuardians(ServerWorld sw) {
+        if (!this.enabled || protectedStructureId == null || protectedStructureId.isEmpty()) return;
+        final double R = getRenderRadius();
+        final Vec3d c = getDomeBaseCenter();
+        final Box area = new Box(c.x - R - 12, c.y - 20, c.z - R - 12, c.x + R + 12, c.y + R + 12, c.z + R + 12);
+
+        // Check Dome Guardians
+        List<DomeGuardianEntity> guardians = sw.getEntitiesByClass(DomeGuardianEntity.class, area, LivingEntity::isAlive);
+        if (guardians.size() < 3) {
+            double[] angles = new double[]{0.0, Math.PI / 2.0, Math.PI, -Math.PI / 2.0};
+            double ang = angles[sw.random.nextInt(angles.length)];
+            double spawnDist = Math.max(8.0, R - 2.0);
+            double gx = c.x + Math.cos(ang) * spawnDist;
+            double gz = c.z + Math.sin(ang) * spawnDist;
+
+            BlockPos spawnPos = findWalkableSurface(sw, gx, gz, (int) c.y + 1);
+            if (spawnPos != null && sw.isInBuildLimit(spawnPos)) {
+                DomeGuardianEntity guardian = BotumiRegistry.DOME_GUARDIAN_ENTITY_TYPE.create(sw);
+                if (guardian != null) {
+                    guardian.refreshPositionAndAngles(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, (float) Math.toDegrees(ang) + 180f, 0f);
+                    guardian.initialize(sw, sw.getLocalDifficulty(spawnPos), net.minecraft.entity.SpawnReason.STRUCTURE, null);
+                    sw.spawnEntity(guardian);
+                }
+            }
+        }
+
+        // Check Core Sentinel Boss (spawns only once, never respawns once defeated)
+        if (!this.bossSpawned && !this.bossDefeated) {
+            List<CoreSentinelBossEntity> bosses = sw.getEntitiesByClass(CoreSentinelBossEntity.class, area, LivingEntity::isAlive);
+            if (bosses.isEmpty()) {
+                BlockPos bPos = findWalkableSurfaceNear(sw, this.pos, 4);
+                if (bPos != null && sw.isInBuildLimit(bPos)) {
+                    CoreSentinelBossEntity boss = BotumiRegistry.CORE_SENTINEL_ENTITY_TYPE.create(sw);
+                    if (boss != null) {
+                        boss.setDomeOrigin(this.pos);
+                        boss.refreshPositionAndAngles(bPos.getX() + 0.5, bPos.getY(), bPos.getZ() + 0.5, 0f, 0f);
+                        boss.initialize(sw, sw.getLocalDifficulty(bPos), net.minecraft.entity.SpawnReason.STRUCTURE, null);
+                        sw.spawnEntity(boss);
+                        this.bossSpawned = true;
+                        markChanged();
+                    }
+                }
+            } else {
+                this.bossSpawned = true;
+            }
+        }
+    }
+
+    private BlockPos findWalkableSurface(ServerWorld sw, double x, double z, int preferredY) {
+        int bx = MathHelper.floor(x);
+        int bz = MathHelper.floor(z);
+        int topY = sw.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, bx, bz);
+
+        int scanStart = Math.min(topY + 1, preferredY + 25);
+        int scanEnd = Math.max(sw.getBottomY() + 1, preferredY - 20);
+        BlockPos.Mutable mut = new BlockPos.Mutable(bx, scanStart, bz);
+
+        for (int y = scanStart; y >= scanEnd; y--) {
+            mut.setY(y);
+            BlockState below = sw.getBlockState(mut.down());
+            BlockState at = sw.getBlockState(mut);
+            BlockState above = sw.getBlockState(mut.up());
+            if (below.isSolidBlock(sw, mut.down()) && !below.isOf(Blocks.BARRIER)
+                    && (at.isAir() || !at.blocksMovement())
+                    && (above.isAir() || !above.blocksMovement())) {
+                return mut.toImmutable();
+            }
+        }
+        return new BlockPos(bx, preferredY + 1, bz);
+    }
+
+    private BlockPos findWalkableSurfaceNear(ServerWorld sw, BlockPos center, int radius) {
+        BlockPos.Mutable mut = new BlockPos.Mutable();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (Math.abs(dx) + Math.abs(dz) < 2) continue;
+                for (int dy = 2; dy >= -2; dy--) {
+                    mut.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
+                    BlockState below = sw.getBlockState(mut.down());
+                    BlockState at = sw.getBlockState(mut);
+                    BlockState above = sw.getBlockState(mut.up());
+                    if (below.isSolidBlock(sw, mut.down()) && !below.isOf(Blocks.BARRIER)
+                            && (at.isAir() || !at.blocksMovement())
+                            && (above.isAir() || !above.blocksMovement())) {
+                        return mut.toImmutable();
+                    }
+                }
+            }
+        }
+        return center.up();
     }
 
     private boolean isAtGate(double py, double angle, double radius) {
-        final double gateHeightRatio = 0.01;
-        final double gateYCenter = radius * gateHeightRatio;
-        final double gateYMin = gateYCenter - 1.0;
-        final double gateYMax = gateYCenter + 1.0;
-
-        if (py < gateYMin || py > gateYMax) return false;
-
-        final double gateWidthBlocks = 2.0;
-        final double rGate = Math.max(1.0e-3, Math.sqrt(Math.max(0.0, radius * radius - gateYCenter * gateYCenter)));
-        final double halfAngleGate = (gateWidthBlocks * 0.5) / rGate;
-
-        final double[] gateAngles = new double[]{0.0, Math.PI / 2.0, Math.PI, -Math.PI / 2.0};
-        for (double ga : gateAngles) {
-            double diff = Math.abs(normPi(angle - ga));
-            if (diff <= halfAngleGate) return true;
-        }
-        return false;
+        return DomeBlockEntityRenderer.isAtGate(py, angle, radius);
     }
 
     private void decayTempColliders(ServerWorld sw) {
@@ -260,9 +490,11 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
     private void addCollider(ServerWorld sw, BlockPos pos) {
         if (!sw.isInBuildLimit(pos)) return;
         var st = sw.getBlockState(pos);
-        if (st.isAir() || st.isOf(Blocks.BARRIER)) {
+        if (st.isAir()) {
             sw.setBlockState(pos, Blocks.BARRIER.getDefaultState(), 3);
-            barrierTtl.put(pos, 3);
+            barrierTtl.put(pos, 4);
+        } else if (st.isOf(Blocks.BARRIER)) {
+            barrierTtl.put(pos, 4);
         }
     }
 
@@ -314,10 +546,10 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             double cx = p.getX() + 0.5 - c.x;
             double cy = p.getY() + 0.5 - c.y;
             double cz = p.getZ() + 0.5 - c.z;
+            if (cy < 0.0 || cy > R) continue;
             double d = Math.sqrt(cx * cx + cy * cy + cz * cz);
             if (d < 1.0e-6) continue;
             if (Math.abs(d - R) > 1.25) continue;
-            if (cy < 0.0 || cy > R) continue;
             double ang = Math.atan2(cz, cx);
             if (isAtGate(cy, ang, R)) continue;
             addCollider(sw, p);
@@ -331,6 +563,16 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         if (R < 0.5) return;
 
         final Vec3d c = getDomeBaseCenter();
+        final double maxDistanceSq = (R + 24.0) * (R + 24.0);
+
+        boolean playerNearby = false;
+        for (PlayerEntity p : sw.getPlayers()) {
+            if (p.squaredDistanceTo(c.x, c.y, c.z) <= maxDistanceSq) {
+                playerNearby = true;
+                break;
+            }
+        }
+        if (!playerNearby) return;
 
         final Box query = new Box(
                 c.x - R - 2.0, c.y - 2.0, c.z - R - 2.0,
@@ -345,8 +587,28 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
             double dNow = rNow.length();
             if (dNow < 1.0e-6) continue;
 
-            if (Math.abs(dNow - R) <= 6.0) {
-                placeBarrierPatch(sw, c, R, rNow);
+            double py = centerNow.y - c.y;
+            if (py < 0.0 || py > R + 1.0) continue;
+
+            double ang = Math.atan2(rNow.z, rNow.x);
+            if (isAtGate(py, ang, R)) continue;
+
+            double distDiff = Math.abs(dNow - R);
+            if (distDiff <= 1.2) {
+                Vec3d norm = rNow.normalize();
+                double pushStrength = 0.35;
+                if (dNow >= R) {
+                    e.addVelocity(norm.x * pushStrength, 0.08, norm.z * pushStrength);
+                } else {
+                    e.addVelocity(-norm.x * pushStrength, 0.08, -norm.z * pushStrength);
+                }
+                e.velocityModified = true;
+
+                sw.spawnParticles(ParticleTypes.ELECTRIC_SPARK, centerNow.x, centerNow.y, centerNow.z, 2, 0.2, 0.2, 0.2, 0.02);
+
+                if (e instanceof PlayerEntity && distDiff <= 0.8) {
+                    placeBarrierPatch(sw, c, R, rNow);
+                }
             }
         }
     }
@@ -444,6 +706,22 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         markChanged();
     }
 
+    public boolean isDestroying() {
+        return this.isDestroying;
+    }
+
+    public int getDestructionQueueSize() {
+        return this.destructionQueue.size();
+    }
+
+    public boolean isRestoring() {
+        return this.isRestoring;
+    }
+
+    public int getRestorationQueueSize() {
+        return this.restorationQueue.size();
+    }
+
     public Vec3d getDomeBaseCenter() {
         return new Vec3d(centerX, centerY, centerZ);
     }
@@ -485,6 +763,8 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         if (nbt.contains("DomeCenterZ")) this.centerZ = nbt.getDouble("DomeCenterZ");
 
         this.destroyCountdownTicks = nbt.contains("DestroyCountdown") ? nbt.getInt("DestroyCountdown") : -1;
+        this.bossSpawned = nbt.getBoolean("BossSpawned");
+        this.bossDefeated = nbt.getBoolean("BossDefeated");
     }
 
     @Override
@@ -506,6 +786,8 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         nbt.putDouble("DomeCenterY", this.centerY);
         nbt.putDouble("DomeCenterZ", this.centerZ);
         nbt.putInt("DestroyCountdown", this.destroyCountdownTicks);
+        nbt.putBoolean("BossSpawned", this.bossSpawned);
+        nbt.putBoolean("BossDefeated", this.bossDefeated);
     }
 
     @Override
@@ -525,7 +807,27 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         nbt.putDouble("DomeCenterY", this.centerY);
         nbt.putDouble("DomeCenterZ", this.centerZ);
         nbt.putInt("DestroyCountdown", this.destroyCountdownTicks);
+        nbt.putBoolean("BossSpawned", this.bossSpawned);
+        nbt.putBoolean("BossDefeated", this.bossDefeated);
         return nbt;
+    }
+
+    public boolean isBossDefeated() {
+        return bossDefeated;
+    }
+
+    public void setBossDefeated(boolean defeated) {
+        this.bossDefeated = defeated;
+        markChanged();
+    }
+
+    public boolean isBossSpawned() {
+        return bossSpawned;
+    }
+
+    public void setBossSpawned(boolean spawned) {
+        this.bossSpawned = spawned;
+        markChanged();
     }
 
     @Override
@@ -552,21 +854,29 @@ public class DomeBlockEntity extends BlockEntity implements NamedScreenHandlerFa
         if (useStructureCenter && protectedStructureId != null && !protectedStructureId.isEmpty()) {
             Box b = StructureGuard.getStructureData(sw, this.pos, protectedStructureId);
             if (b != null) {
+                this.centerX = b.getCenter().x;
+                if ("botumi:town".equals(protectedStructureId)) {
+                    this.centerY = Math.max(b.minY, this.pos.getY() - 42);
+                } else {
+                    this.centerY = b.minY;
+                }
+                this.centerZ = b.getCenter().z;
+
                 if (useStructureRadius) {
                     double maxSq = getMaxSq(b);
                     this.computedRadius = Math.max(1.0, Math.sqrt(maxSq));
                 } else {
                     this.computedRadius = Math.max(1.0, this.radius);
                 }
-                this.centerX = b.getCenter().x;
+            } else if ("botumi:town".equals(protectedStructureId)) {
                 this.centerY = this.pos.getY() - 42;
-                this.centerZ = b.getCenter().z;
+                this.computedRadius = Math.max(1.0, this.radius);
             }
         }
     }
 
     private double getMaxSq(Box b) {
-        Vec3d c = new Vec3d(b.getCenter().getX(), this.pos.getY(), b.getCenter().getZ());
+        Vec3d c = new Vec3d(this.centerX, this.centerY, this.centerZ);
         double maxSq = 0.0;
         for (double x : new double[]{b.minX, b.maxX}) {
             for (double y : new double[]{b.minY, b.maxY}) {

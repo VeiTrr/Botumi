@@ -12,8 +12,29 @@ import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEntity> {
-    private static final int SEGMENTS = 256;
-    private static final int RINGS = 48;
+    private static final int SEGMENTS = 128;
+    private static final int RINGS = 24;
+
+    public static final double GATE_WIDTH = 7.0;
+    public static final double GATE_HEIGHT = 5.0;
+
+    private static final double[] SIN_PHI = new double[RINGS + 1];
+    private static final double[] COS_PHI = new double[RINGS + 1];
+    private static final double[] SIN_TH = new double[SEGMENTS + 1];
+    private static final double[] COS_TH = new double[SEGMENTS + 1];
+
+    static {
+        for (int i = 0; i <= RINGS; i++) {
+            double phi = ((double) i / (double) RINGS) * (Math.PI / 2.0);
+            SIN_PHI[i] = Math.sin(phi);
+            COS_PHI[i] = Math.cos(phi);
+        }
+        for (int s = 0; s <= SEGMENTS; s++) {
+            double th = ((double) s / (double) SEGMENTS) * (Math.PI * 2.0);
+            SIN_TH[s] = Math.sin(th);
+            COS_TH[s] = Math.cos(th);
+        }
+    }
 
     @SuppressWarnings("unused")
     public DomeBlockEntityRenderer(BlockEntityRendererFactory.Context context) { }
@@ -51,6 +72,24 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
                 rangesOverlap(a1 + Math.PI * 2.0, a2 + Math.PI * 2.0, -half, +half);
     }
 
+    public static boolean isAtGate(double py, double deltaY, double angle, double radius) {
+        return isAtGate(py - deltaY, angle, radius);
+    }
+
+    public static boolean isAtGate(double py, double angle, double radius) {
+        if (py < 0.0 || py > GATE_HEIGHT) return false;
+
+        final double rGate = Math.max(1.0, Math.sqrt(Math.max(0.0, radius * radius - py * py)));
+        final double halfAngleGate = (GATE_WIDTH * 0.5) / rGate;
+
+        final double[] gateAngles = new double[]{0.0, Math.PI / 2.0, Math.PI, -Math.PI / 2.0};
+        for (double ga : gateAngles) {
+            double diff = Math.abs(normPi(angle - ga));
+            if (diff <= halfAngleGate) return true;
+        }
+        return false;
+    }
+
     @Override
     public void render(DomeBlockEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay) {
         if (!entity.isEnabled()) return;
@@ -59,6 +98,8 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
         if (radius < 0.5) return;
 
         Vec3d center = entity.getDomeBaseCenter();
+        double phiMin = 0.0;
+        double phiMax = Math.PI / 2.0;
 
         float t = (float) (Util.getMeasuringTimeMs() % 6000L) / 6000.0f;
         float uScroll = t;
@@ -85,24 +126,12 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
         double uScale = (2.0 * Math.PI * radius) / tile;
         double vScale = (0.5 * Math.PI * radius) / tile;
 
-
-        final double gateHeightRatio = 0.01;
-        final double gateYCenter = radius * gateHeightRatio;
-        final double gateYMin = gateYCenter - 1.0;
-        final double gateYMax = gateYCenter + 1.0;
-
-        final double rGate = Math.max(1.0e-3, Math.sqrt(Math.max(0.0, radius * radius - gateYCenter * gateYCenter)));
-        final double gateWidthBlocks = 2.0;
-        final double halfAngleGate = (gateWidthBlocks * 0.5) / rGate;
-
-        final double[] gateAngles = new double[] { 0.0, Math.PI / 2.0, Math.PI, -Math.PI / 2.0 };
-
         for (int i = 0; i < RINGS; i++) {
             double t1r = (double) i / (double) RINGS;
             double t2r = (double) (i + 1) / (double) RINGS;
 
-            double phi1 = t1r * (Math.PI / 2.0);
-            double phi2 = t2r * (Math.PI / 2.0);
+            double phi1 = phiMin + t1r * (phiMax - phiMin);
+            double phi2 = phiMin + t2r * (phiMax - phiMin);
 
             double y1 = Math.sin(phi1) * radius;
             double y2 = Math.sin(phi2) * radius;
@@ -113,57 +142,52 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
             float v1 = (float) (t1r * vScale + vScroll);
             float v2 = (float) (t2r * vScale + vScroll);
 
-            boolean ringHitsGateY = Math.max(y1, y2) >= gateYMin && Math.min(y1, y2) <= gateYMax;
+            double midY = (y1 + y2) * 0.5;
 
             for (int s = 0; s < SEGMENTS; s++) {
                 double u1 = (double) s / (double) SEGMENTS;
                 double u2 = (double) (s + 1) / (double) SEGMENTS;
 
-                double th1 = u1 * Math.PI * 2.0;
-                double th2 = u2 * Math.PI * 2.0;
+                double th1 = ((double) s / (double) SEGMENTS) * Math.PI * 2.0;
+                double th2 = ((double) (s + 1) / (double) SEGMENTS) * Math.PI * 2.0;
+                double midTh = (th1 + th2) * 0.5;
 
-                boolean inGate = false;
-                if (ringHitsGateY) {
-                    for (double ga : gateAngles) {
-                        if (angleIntervalOverlapsSector(th1, th2, ga, halfAngleGate)) {
-                            inGate = true;
-                            break;
-                        }
-                    }
+                if (isAtGate(midY, midTh, radius)) {
+                    continue;
                 }
-                if (inGate) continue;
 
-                double x11 = Math.cos(th1) * r1h;
-                double z11 = Math.sin(th1) * r1h;
+                double x11 = COS_TH[s] * r1h;
+                double z11 = SIN_TH[s] * r1h;
 
-                double x12 = Math.cos(th2) * r1h;
-                double z12 = Math.sin(th2) * r1h;
+                double x12 = COS_TH[s + 1] * r1h;
+                double z12 = SIN_TH[s + 1] * r1h;
 
-                double x21 = Math.cos(th1) * r2h;
-                double z21 = Math.sin(th1) * r2h;
+                double x21 = COS_TH[s] * r2h;
+                double z21 = SIN_TH[s] * r2h;
 
-                double x22 = Math.cos(th2) * r2h;
-                double z22 = Math.sin(th2) * r2h;
+                double x22 = COS_TH[s + 1] * r2h;
+                double z22 = SIN_TH[s + 1] * r2h;
 
-                float n11x = (float) (x11 / radius);
-                float n11y = (float) (y1  / radius);
-                float n11z = (float) (z11 / radius);
+                float n11x = (float) (COS_TH[s] * Math.cos(phi1));
+                float n11y = (float) (Math.sin(phi1));
+                float n11z = (float) (SIN_TH[s] * Math.cos(phi1));
 
-                float n12x = (float) (x12 / radius);
-                float n12y = (float) (y1  / radius);
-                float n12z = (float) (z12 / radius);
+                float n12x = (float) (COS_TH[s + 1] * Math.cos(phi1));
+                float n12y = (float) (Math.sin(phi1));
+                float n12z = (float) (SIN_TH[s + 1] * Math.cos(phi1));
 
-                float n21x = (float) (x21 / radius);
-                float n21y = (float) (y2  / radius);
-                float n21z = (float) (z21 / radius);
+                float n21x = (float) (COS_TH[s] * Math.cos(phi2));
+                float n21y = (float) (Math.sin(phi2));
+                float n21z = (float) (SIN_TH[s] * Math.cos(phi2));
 
-                float n22x = (float) (x22 / radius);
-                float n22y = (float) (y2  / radius);
-                float n22z = (float) (z22 / radius);
+                float n22x = (float) (COS_TH[s + 1] * Math.cos(phi2));
+                float n22y = (float) (Math.sin(phi2));
+                float n22z = (float) (SIN_TH[s + 1] * Math.cos(phi2));
 
                 float uu1 = (float) (u1 * uScale + uScroll);
                 float uu2 = (float) (u2 * uScale + uScroll);
 
+                // Outer face
                 vertex(vc, posMat, entry,
                         (float) x11, (float) y1, (float) z11,
                         uu1, v1,
@@ -187,6 +211,31 @@ public class DomeBlockEntityRenderer implements BlockEntityRenderer<DomeBlockEnt
                         uu2, v1,
                         r, g, b, a, overlay, light,
                         n12x, n12y, n12z);
+
+                // Inner face (so players inside the dome also see the forcefield ceiling and walls)
+                vertex(vc, posMat, entry,
+                        (float) x12, (float) y1, (float) z12,
+                        uu2, v1,
+                        r, g, b, a, overlay, light,
+                        -n12x, -n12y, -n12z);
+
+                vertex(vc, posMat, entry,
+                        (float) x22, (float) y2, (float) z22,
+                        uu2, v2,
+                        r, g, b, a, overlay, light,
+                        -n22x, -n22y, -n22z);
+
+                vertex(vc, posMat, entry,
+                        (float) x21, (float) y2, (float) z21,
+                        uu1, v2,
+                        r, g, b, a, overlay, light,
+                        -n21x, -n21y, -n21z);
+
+                vertex(vc, posMat, entry,
+                        (float) x11, (float) y1, (float) z11,
+                        uu1, v1,
+                        r, g, b, a, overlay, light,
+                        -n11x, -n11y, -n11z);
             }
         }
 

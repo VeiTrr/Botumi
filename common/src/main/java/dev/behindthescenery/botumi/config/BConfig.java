@@ -30,6 +30,9 @@ public class BConfig {
     }
 
     public static void save() {
+        if (CONFIG_FILE.getParentFile() != null) {
+            CONFIG_FILE.getParentFile().mkdirs();
+        }
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
             GSON.toJson(INSTANCE, writer);
         } catch (IOException e) {

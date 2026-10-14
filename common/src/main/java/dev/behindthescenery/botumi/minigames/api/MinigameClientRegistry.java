@@ -2,6 +2,8 @@ package dev.behindthescenery.botumi.minigames.api;
 
 import dev.behindthescenery.botumi.client.ui.MinigameScreen;
 import dev.behindthescenery.botumi.minigames.client.DebugMinigameClient;
+import dev.behindthescenery.botumi.minigames.client.FrequencyMinigameClient;
+import dev.behindthescenery.botumi.minigames.client.MemoryMinigameClient;
 import dev.behindthescenery.botumi.minigames.client.WiresMinigameClient;
 import net.minecraft.util.Identifier;
 
@@ -18,6 +20,8 @@ public final class MinigameClientRegistry {
     public static void init() {
         register(Identifier.of("botumi", "minigame_debug"), DebugMinigameClient::new);
         register(Identifier.of("botumi", "minigame_wires"), WiresMinigameClient::new);
+        register(Identifier.of("botumi", "minigame_memory"), MemoryMinigameClient::new);
+        register(Identifier.of("botumi", "minigame_frequency"), FrequencyMinigameClient::new);
     }
 
     public static void register(Identifier id, Function<MinigameScreen, MinigameClient> factory) {
